@@ -3,16 +3,18 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Plus, Mail } from "lucide-react";
+import { Plus, Mail, RefreshCw } from "lucide-react";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { ApplicationsList } from "@/components/applications/ApplicationsList";
 import { ApplicationDialog } from "@/components/applications/ApplicationDialog";
 import { toast } from "sonner";
+import { useGmailSync } from "@/hooks/useGmailSync";
 
 const Index = () => {
   const navigate = useNavigate();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const { syncEmails, isSyncing, isConnected } = useGmailSync();
 
   // Check auth status
   const { data: session, isLoading: sessionLoading } = useQuery({
@@ -76,10 +78,36 @@ const Index = () => {
             <p className="text-muted-foreground mt-1">Track your job applications effortlessly</p>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" size="lg">
-              <Mail className="mr-2 h-5 w-5" />
-              Connect Gmail
-            </Button>
+            {isConnected ? (
+              <Button 
+                variant="outline" 
+                size="lg"
+                onClick={syncEmails}
+                disabled={isSyncing}
+              >
+                <RefreshCw className={`mr-2 h-5 w-5 ${isSyncing ? "animate-spin" : ""}`} />
+                {isSyncing ? "Syncing..." : "Sync Emails"}
+              </Button>
+            ) : (
+              <Button 
+                variant="outline" 
+                size="lg"
+                onClick={async () => {
+                  try {
+                    const { data, error } = await supabase.functions.invoke("gmail-auth-init");
+                    if (error) throw error;
+                    
+                    window.open(data.authUrl, "_blank", "width=600,height=700");
+                    toast.success("Opening Gmail authorization...");
+                  } catch (error: any) {
+                    toast.error(error.message || "Failed to connect Gmail");
+                  }
+                }}
+              >
+                <Mail className="mr-2 h-5 w-5" />
+                Connect Gmail
+              </Button>
+            )}
             <Button onClick={() => setIsDialogOpen(true)} size="lg">
               <Plus className="mr-2 h-5 w-5" />
               Add Application
