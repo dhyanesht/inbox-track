@@ -14,7 +14,95 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      application_events: {
+        Row: {
+          application_id: string
+          created_at: string
+          description: string | null
+          event_date: string
+          event_type: string
+          id: string
+          title: string
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          description?: string | null
+          event_date?: string
+          event_type: string
+          id?: string
+          title: string
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          description?: string | null
+          event_date?: string
+          event_type?: string
+          id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_events_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "job_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_applications: {
+        Row: {
+          application_date: string
+          company_name: string
+          created_at: string
+          email_thread_id: string | null
+          id: string
+          job_url: string | null
+          last_updated: string
+          location: string | null
+          notes: string | null
+          position: string
+          priority: string | null
+          salary_range: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          application_date?: string
+          company_name: string
+          created_at?: string
+          email_thread_id?: string | null
+          id?: string
+          job_url?: string | null
+          last_updated?: string
+          location?: string | null
+          notes?: string | null
+          position: string
+          priority?: string | null
+          salary_range?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          application_date?: string
+          company_name?: string
+          created_at?: string
+          email_thread_id?: string | null
+          id?: string
+          job_url?: string | null
+          last_updated?: string
+          location?: string | null
+          notes?: string | null
+          position?: string
+          priority?: string | null
+          salary_range?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
