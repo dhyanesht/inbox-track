@@ -22,7 +22,8 @@ serve(async (req) => {
 
     const clientId = Deno.env.get("GMAIL_CLIENT_ID");
     const clientSecret = Deno.env.get("GMAIL_CLIENT_SECRET");
-    const redirectUri = `${url.origin}/functions/v1/gmail-auth-callback`;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const redirectUri = `${supabaseUrl}/functions/v1/gmail-auth-callback`;
 
     console.log("Exchanging code for tokens...");
 
@@ -70,12 +71,16 @@ serve(async (req) => {
 
     console.log("Tokens stored successfully");
 
-    // Redirect back to app
+    // Redirect back to app - use the referer or default to preview URL
+    const referer = req.headers.get("referer") || "https://id-preview--b07fd190-314a-4439-bbb7-e05c488a3c18.lovable.app/";
+    const redirectUrl = new URL(referer);
+    redirectUrl.searchParams.set("gmail_connected", "true");
+    
     return new Response(null, {
       status: 302,
       headers: {
         ...corsHeaders,
-        Location: `${url.origin}?gmail_connected=true`,
+        Location: redirectUrl.toString(),
       },
     });
   } catch (error: any) {

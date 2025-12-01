@@ -23,8 +23,8 @@ serve(async (req) => {
     if (userError || !user) throw new Error("Not authenticated");
 
     const clientId = Deno.env.get("GMAIL_CLIENT_ID");
-    const url = new URL(req.url);
-    const redirectUri = `${url.origin}/functions/v1/gmail-auth-callback`;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const redirectUri = `${supabaseUrl}/functions/v1/gmail-auth-callback`;
 
     // Build OAuth URL
     const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
