@@ -9,12 +9,17 @@ import { ApplicationsList } from "@/components/applications/ApplicationsList";
 import { ApplicationDialog } from "@/components/applications/ApplicationDialog";
 import { toast } from "sonner";
 import { useGmailSync } from "@/hooks/useGmailSync";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const Index = () => {
   const navigate = useNavigate();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
-  const { syncEmails, isSyncing, isConnected } = useGmailSync();
+  const [gmailPopup, setGmailPopup] = useState<Window | null>(null);
+  const [emailText, setEmailText] = useState("");
+  const [emailLoading, setEmailLoading] = useState(false);
+  const { syncEmails, isSyncing, isConnected } = useGmailSync(gmailPopup, setGmailPopup);
 
   // Check auth status
   const { data: session, isLoading: sessionLoading } = useQuery({
@@ -41,6 +46,59 @@ const Index = () => {
     },
     enabled: !!user,
   });
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEmailLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      // Simple parsing: expects 'Subject:', 'From:', then body
+      const subjectMatch = emailText.match(/Subject:(.*)/i);
+      const fromMatch = emailText.match(/From:(.*)/i);
+      const subject = subjectMatch ? subjectMatch[1].trim() : "";
+      const from = fromMatch ? fromMatch[1].trim() : "";
+      const body = emailText;
+      // AI categorize
+      const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${import.meta.env.VITE_LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            { role: "system", content: "You categorize job application emails. Return only ONE of: thank_you, interview, offer, rejection, other" },
+            { role: "user", content: `Subject: ${subject}\nFrom: ${from}\nBody: ${body}\n\nCategorize this email.` }
+          ],
+        }),
+      });
+      const aiData = await aiResponse.json();
+      const category = aiData.choices?.[0]?.message?.content?.trim().toLowerCase();
+      // Find matching application
+      const matchedApp = (applications || []).find((app: any) =>
+        from.toLowerCase().includes(app.company_name.toLowerCase()) ||
+        subject.toLowerCase().includes(app.company_name.toLowerCase())
+      );
+      if (matchedApp && category && category !== "other") {
+        await supabase.from("job_applications").update({
+          status: category,
+          last_updated: new Date().toISOString(),
+          notes: `Updated via pasted email. Subject: ${subject}`,
+        }).eq("id", matchedApp.id);
+        toast.success(`Application updated: ${matchedApp.company_name} (${category})`);
+        refetch();
+      } else {
+        toast.error("No matching application or category found.");
+      }
+      setEmailText("");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to process email");
+    } finally {
+      setEmailLoading(false);
+    }
+  };
 
   if (sessionLoading) {
     return (
@@ -96,8 +154,8 @@ const Index = () => {
                   try {
                     const { data, error } = await supabase.functions.invoke("gmail-auth-init");
                     if (error) throw error;
-                    
-                    window.open(data.authUrl, "_blank", "width=600,height=700");
+                    const popup = window.open(data.authUrl, "_blank", "width=600,height=700");
+                    setGmailPopup(popup);
                     toast.success("Opening Gmail authorization...");
                   } catch (error: any) {
                     toast.error(error.message || "Failed to connect Gmail");
@@ -134,6 +192,23 @@ const Index = () => {
             toast.success("Application added successfully!");
           }}
         />
+
+        {/* Paste Email Section */}
+        <div className="my-8 p-6 border rounded-xl bg-card">
+          <h2 className="text-xl font-bold mb-2">Paste Job Application Email</h2>
+          <form onSubmit={handleEmailSubmit} className="space-y-4">
+            <Textarea
+              value={emailText}
+              onChange={e => setEmailText(e.target.value)}
+              placeholder="Paste the full email content here (include Subject and From lines)"
+              rows={6}
+              required
+            />
+            <Button type="submit" disabled={emailLoading || !emailText}>
+              {emailLoading ? "Processing..." : "Submit Email"}
+            </Button>
+          </form>
+        </div>
       </div>
     </div>
   );

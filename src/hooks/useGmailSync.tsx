@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
-export const useGmailSync = () => {
+export const useGmailSync = (gmailPopup?: Window | null, setGmailPopup?: (w: Window | null) => void) => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const queryClient = useQueryClient();
@@ -48,14 +48,26 @@ export const useGmailSync = () => {
 
     // Listen for postMessage from OAuth popup
     const handleMessage = (event: MessageEvent) => {
-      console.log('[Gmail Sync] Received message:', event.data);
-      
+      console.log('[Gmail Sync] Received message:', event.data, 'from origin:', event.origin);
+      // Accept messages only from same origin for security
+      if (event.origin !== window.location.origin) {
+        console.warn('[Gmail Sync] Ignoring message from unexpected origin:', event.origin);
+        return;
+      }
       if (event.data.type === 'gmail_connected' && event.data.success) {
         console.log('[Gmail Sync] Gmail connected message received, triggering sync');
         toast.success("Gmail connected successfully!");
         setIsConnected(true);
         // Trigger initial sync
         syncEmails();
+        // Try to close popup from parent
+        if (gmailPopup && !gmailPopup.closed) {
+          console.log('[Gmail Sync] Closing popup from parent');
+          gmailPopup.close();
+          if (setGmailPopup) setGmailPopup(null);
+        } else {
+          console.log('[Gmail Sync] Popup reference missing or already closed');
+        }
       }
     };
 
@@ -66,7 +78,7 @@ export const useGmailSync = () => {
       console.log('[Gmail Sync] Removing message listener');
       window.removeEventListener('message', handleMessage);
     };
-  }, [syncEmails]);
+  }, [syncEmails, gmailPopup, setGmailPopup]);
 
   return { syncEmails, isSyncing, isConnected };
 };
