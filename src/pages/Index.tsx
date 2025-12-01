@@ -9,7 +9,6 @@ import { ApplicationsList } from "@/components/applications/ApplicationsList";
 import { ApplicationDialog } from "@/components/applications/ApplicationDialog";
 import { toast } from "sonner";
 import { useGmailSync } from "@/hooks/useGmailSync";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 const Index = () => {
@@ -54,8 +53,8 @@ const Index = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       // Simple parsing: expects 'Subject:', 'From:', then body
-      const subjectMatch = emailText.match(/Subject:(.*)/i);
-      const fromMatch = emailText.match(/From:(.*)/i);
+      const subjectMatch = /Subject:(.*)/i.exec(emailText);
+      const fromMatch = /From:(.*)/i.exec(emailText);
       const subject = subjectMatch ? subjectMatch[1].trim() : "";
       const from = fromMatch ? fromMatch[1].trim() : "";
       const body = emailText;
@@ -215,3 +214,4 @@ const Index = () => {
 };
 
 export default Index;
+
