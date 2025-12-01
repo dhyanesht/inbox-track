@@ -106,10 +106,19 @@ serve(async (req) => {
           </div>
           <script>
             // Notify parent window and close
+            console.log('[Gmail OAuth] Popup loaded, window.opener:', !!window.opener);
+            
             if (window.opener) {
+              console.log('[Gmail OAuth] Sending postMessage to parent window');
               window.opener.postMessage({ type: 'gmail_connected', success: true }, '*');
-              setTimeout(() => window.close(), 1000);
+              
+              console.log('[Gmail OAuth] Attempting to close popup in 1 second');
+              setTimeout(() => {
+                console.log('[Gmail OAuth] Closing popup now');
+                window.close();
+              }, 1000);
             } else {
+              console.log('[Gmail OAuth] No window.opener, showing fallback');
               document.body.innerHTML = '<div class="message"><h1>✓ Connected!</h1><p>You can close this window now.</p></div>';
             }
           </script>
