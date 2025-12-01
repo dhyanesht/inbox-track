@@ -71,17 +71,54 @@ serve(async (req) => {
 
     console.log("Tokens stored successfully");
 
-    // Redirect back to app - use the referer or default to preview URL
-    const referer = req.headers.get("referer") || "https://id-preview--b07fd190-314a-4439-bbb7-e05c488a3c18.lovable.app/";
-    const redirectUrl = new URL(referer);
-    redirectUrl.searchParams.set("gmail_connected", "true");
-    
-    return new Response(null, {
-      status: 302,
-      headers: {
-        ...corsHeaders,
-        Location: redirectUrl.toString(),
-      },
+    // Return HTML that closes popup and notifies parent window
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Gmail Connected</title>
+          <style>
+            body {
+              font-family: system-ui, -apple-system, sans-serif;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              height: 100vh;
+              margin: 0;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+            }
+            .message {
+              text-align: center;
+              padding: 2rem;
+              background: rgba(255, 255, 255, 0.1);
+              border-radius: 1rem;
+              backdrop-filter: blur(10px);
+            }
+            h1 { margin: 0 0 1rem 0; }
+            p { margin: 0; opacity: 0.9; }
+          </style>
+        </head>
+        <body>
+          <div class="message">
+            <h1>✓ Gmail Connected!</h1>
+            <p>This window will close automatically...</p>
+          </div>
+          <script>
+            // Notify parent window and close
+            if (window.opener) {
+              window.opener.postMessage({ type: 'gmail_connected', success: true }, '*');
+              setTimeout(() => window.close(), 1000);
+            } else {
+              document.body.innerHTML = '<div class="message"><h1>✓ Connected!</h1><p>You can close this window now.</p></div>';
+            }
+          </script>
+        </body>
+      </html>
+    `;
+
+    return new Response(html, {
+      headers: { ...corsHeaders, 'Content-Type': 'text/html' },
     });
   } catch (error: any) {
     console.error("Error in gmail-auth-callback:", error);
