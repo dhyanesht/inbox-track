@@ -25,16 +25,21 @@ export const useGmailSync = () => {
 
     checkConnection();
 
-    // Listen for OAuth success
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("gmail_connected") === "true") {
-      toast.success("Gmail connected successfully!");
-      setIsConnected(true);
-      // Clean URL
-      window.history.replaceState({}, "", window.location.pathname);
-      // Trigger initial sync
-      syncEmails();
-    }
+    // Listen for postMessage from OAuth popup
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === 'gmail_connected' && event.data.success) {
+        toast.success("Gmail connected successfully!");
+        setIsConnected(true);
+        // Trigger initial sync
+        syncEmails();
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
   }, []);
 
   const syncEmails = async () => {
