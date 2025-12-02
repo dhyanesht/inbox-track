@@ -49,11 +49,16 @@ export const useGmailSync = (gmailPopup?: Window | null, setGmailPopup?: (w: Win
     // Listen for postMessage from OAuth popup
     const handleMessage = (event: MessageEvent) => {
       console.log('[Gmail Sync] Received message:', event.data, 'from origin:', event.origin);
-      // Accept messages only from same origin for security
-      if (event.origin !== window.location.origin) {
+      
+      // Accept messages from app origin or Supabase edge function origin
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const allowedOrigins = [window.location.origin, supabaseUrl];
+      
+      if (!allowedOrigins.some(origin => event.origin.startsWith(origin))) {
         console.warn('[Gmail Sync] Ignoring message from unexpected origin:', event.origin);
         return;
       }
+      
       if (event.data.type === 'gmail_connected' && event.data.success) {
         console.log('[Gmail Sync] Gmail connected message received, triggering sync');
         toast.success("Gmail connected successfully!");
