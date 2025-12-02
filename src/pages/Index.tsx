@@ -52,47 +52,55 @@ const Index = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
-      // Simple parsing: expects 'Subject:', 'From:', then body
+      
+      // Parse email text
       const subjectMatch = /Subject:(.*)/i.exec(emailText);
       const fromMatch = /From:(.*)/i.exec(emailText);
       const subject = subjectMatch ? subjectMatch[1].trim() : "";
       const from = fromMatch ? fromMatch[1].trim() : "";
       const body = emailText;
-      // AI categorize
-      const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${import.meta.env.VITE_LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [
-            { role: "system", content: "You categorize job application emails. Return only ONE of: thank_you, interview, offer, rejection, other" },
-            { role: "user", content: `Subject: ${subject}\nFrom: ${from}\nBody: ${body}\n\nCategorize this email.` }
-          ],
-        }),
-      });
-      const aiData = await aiResponse.json();
-      const category = aiData.choices?.[0]?.message?.content?.trim().toLowerCase();
+
+      console.log("[Email Paste] Categorizing email:", { subject, from });
+
+      // Call categorize-email edge function
+      const { data: categoryData, error: categoryError } = await supabase.functions.invoke(
+        "categorize-email",
+        { body: { subject, from, body } }
+      );
+
+      if (categoryError) {
+        console.error("[Email Paste] Categorization error:", categoryError);
+        throw categoryError;
+      }
+
+      const category = categoryData?.category;
+      console.log("[Email Paste] Category:", category);
+
       // Find matching application
       const matchedApp = (applications || []).find((app: any) =>
         from.toLowerCase().includes(app.company_name.toLowerCase()) ||
         subject.toLowerCase().includes(app.company_name.toLowerCase())
       );
+
       if (matchedApp && category && category !== "other") {
-        await supabase.from("job_applications").update({
+        const { error: updateError } = await supabase.from("job_applications").update({
           status: category,
           last_updated: new Date().toISOString(),
           notes: `Updated via pasted email. Subject: ${subject}`,
         }).eq("id", matchedApp.id);
+
+        if (updateError) throw updateError;
+
         toast.success(`Application updated: ${matchedApp.company_name} (${category})`);
         refetch();
+      } else if (!matchedApp) {
+        toast.error("No matching application found for this email.");
       } else {
-        toast.error("No matching application or category found.");
+        toast.error("Email category could not be determined.");
       }
       setEmailText("");
     } catch (error: any) {
+      console.error("[Email Paste] Error:", error);
       toast.error(error.message || "Failed to process email");
     } finally {
       setEmailLoading(false);
