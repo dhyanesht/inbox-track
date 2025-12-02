@@ -52,56 +52,77 @@ const Index = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
-      
-      // Parse email text
-      const subjectMatch = /Subject:(.*)/i.exec(emailText);
-      const fromMatch = /From:(.*)/i.exec(emailText);
-      const subject = subjectMatch ? subjectMatch[1].trim() : "";
-      const from = fromMatch ? fromMatch[1].trim() : "";
-      const body = emailText;
 
-      console.log("[Email Paste] Categorizing email:", { subject, from });
+      console.log("[Job Paste] Parsing pasted content...");
 
-      // Call categorize-email edge function
-      const { data: categoryData, error: categoryError } = await supabase.functions.invoke(
-        "categorize-email",
-        { body: { subject, from, body } }
+      // Call parse-job-content edge function to extract structured data
+      const { data: parsedData, error: parseError } = await supabase.functions.invoke(
+        "parse-job-content",
+        { body: { content: emailText } }
       );
 
-      if (categoryError) {
-        console.error("[Email Paste] Categorization error:", categoryError);
-        throw categoryError;
+      if (parseError) {
+        console.error("[Job Paste] Parse error:", parseError);
+        throw parseError;
       }
 
-      const category = categoryData?.category;
-      console.log("[Email Paste] Category:", category);
+      if (parsedData?.error) {
+        toast.error("Could not extract job information. Please check the format and try again.");
+        return;
+      }
 
-      // Find matching application
+      console.log("[Job Paste] Parsed data:", parsedData);
+
+      const { company_name, position, location, application_date, email_type } = parsedData;
+
+      if (!company_name || !position) {
+        toast.error("Could not find company name or position in the pasted content.");
+        return;
+      }
+
+      // Check if this is an update email (has email_type) or a new application
       const matchedApp = (applications || []).find((app: any) =>
-        from.toLowerCase().includes(app.company_name.toLowerCase()) ||
-        subject.toLowerCase().includes(app.company_name.toLowerCase())
+        app.company_name.toLowerCase() === company_name.toLowerCase()
       );
 
-      if (matchedApp && category && category !== "other") {
+      if (matchedApp && email_type && email_type !== "other") {
+        // Update existing application with new status
         const { error: updateError } = await supabase.from("job_applications").update({
-          status: category,
+          status: email_type,
           last_updated: new Date().toISOString(),
-          notes: `Updated via pasted email. Subject: ${subject}`,
+          notes: matchedApp.notes 
+            ? `${matchedApp.notes}\n\nUpdated via pasted email on ${new Date().toLocaleDateString()}`
+            : `Updated via pasted email on ${new Date().toLocaleDateString()}`,
         }).eq("id", matchedApp.id);
 
         if (updateError) throw updateError;
 
-        toast.success(`Application updated: ${matchedApp.company_name} (${category})`);
-        refetch();
-      } else if (!matchedApp) {
-        toast.error("No matching application found for this email.");
+        toast.success(`Application updated: ${company_name} → ${email_type}`);
+      } else if (matchedApp) {
+        // Application exists but no status update
+        toast.info(`Application for ${company_name} already exists. No changes made.`);
       } else {
-        toast.error("Email category could not be determined.");
+        // Create new application
+        const { error: insertError } = await supabase.from("job_applications").insert({
+          user_id: user.id,
+          company_name,
+          position,
+          location: location || null,
+          application_date: application_date || new Date().toISOString(),
+          status: "applied",
+          notes: `Created via pasted content on ${new Date().toLocaleDateString()}`,
+        });
+
+        if (insertError) throw insertError;
+
+        toast.success(`New application created: ${company_name} - ${position}`);
       }
+
+      refetch();
       setEmailText("");
     } catch (error: any) {
-      console.error("[Email Paste] Error:", error);
-      toast.error(error.message || "Failed to process email");
+      console.error("[Job Paste] Error:", error);
+      toast.error(error.message || "Failed to process content");
     } finally {
       setEmailLoading(false);
     }
@@ -200,19 +221,22 @@ const Index = () => {
           }}
         />
 
-        {/* Paste Email Section */}
+        {/* Paste Job Content Section */}
         <div className="my-8 p-6 border rounded-xl bg-card">
-          <h2 className="text-xl font-bold mb-2">Paste Job Application Email</h2>
+          <h2 className="text-xl font-bold mb-2">Quick Add from Paste</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Paste job board notifications, application confirmations, or status update emails to automatically create or update applications.
+          </p>
           <form onSubmit={handleEmailSubmit} className="space-y-4">
             <Textarea
               value={emailText}
               onChange={e => setEmailText(e.target.value)}
-              placeholder="Paste the full email content here (include Subject and From lines)"
+              placeholder="Paste job posting, application confirmation, interview invite, or any job-related content here..."
               rows={6}
               required
             />
             <Button type="submit" disabled={emailLoading || !emailText}>
-              {emailLoading ? "Processing..." : "Submit Email"}
+              {emailLoading ? "Processing..." : "Parse & Add Application"}
             </Button>
           </form>
         </div>
