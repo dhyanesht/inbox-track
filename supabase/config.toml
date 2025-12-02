@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.sync-emails]
 verify_jwt = true
+
+[functions.categorize-email]
+verify_jwt = true
