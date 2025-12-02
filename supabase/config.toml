@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.categorize-email]
 verify_jwt = true
+
+[functions.parse-job-content]
+verify_jwt = true
