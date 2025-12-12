@@ -71,63 +71,21 @@ serve(async (req) => {
 
     console.log("Tokens stored successfully");
 
-    // Return HTML that closes popup and notifies parent window
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Gmail Connected</title>
-          <style>
-            body {
-              font-family: system-ui, -apple-system, sans-serif;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              height: 100vh;
-              margin: 0;
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              color: white;
-            }
-            .message {
-              text-align: center;
-              padding: 2rem;
-              background: rgba(255, 255, 255, 0.1);
-              border-radius: 1rem;
-              backdrop-filter: blur(10px);
-            }
-            h1 { margin: 0 0 1rem 0; }
-            p { margin: 0; opacity: 0.9; }
-          </style>
-        </head>
-        <body>
-          <div class="message">
-            <h1>✓ Gmail Connected!</h1>
-            <p>This window will close automatically...</p>
-          </div>
-          <script>
-            // Notify parent window and close
-            console.log('[Gmail OAuth] Popup loaded, window.opener:', !!window.opener);
-            
-            if (window.opener) {
-              console.log('[Gmail OAuth] Sending postMessage to parent window');
-              window.opener.postMessage({ type: 'gmail_connected', success: true }, '*');
-              
-              console.log('[Gmail OAuth] Attempting to close popup in 1 second');
-              setTimeout(() => {
-                console.log('[Gmail OAuth] Closing popup now');
-                window.close();
-              }, 1000);
-            } else {
-              console.log('[Gmail OAuth] No window.opener, showing fallback');
-              document.body.innerHTML = '<div class="message"><h1>✓ Connected!</h1><p>You can close this window now.</p></div>';
-            }
-          </script>
-        </body>
-      </html>
-    `;
-
-    return new Response(html, {
-      headers: { ...corsHeaders, 'Content-Type': 'text/html' },
+    // Get the app URL from the request origin or use a default
+    const appUrl = Deno.env.get("APP_URL") || "https://nmvzdwwqjwpgtboirfhe.lovable.app";
+    
+    // Redirect to the app with a success parameter
+    // The app will handle closing the popup and notifying the parent
+    const redirectUrl = `${appUrl}/gmail-callback?success=true`;
+    
+    console.log("Redirecting to app:", redirectUrl);
+    
+    return new Response(null, {
+      status: 302,
+      headers: { 
+        ...corsHeaders, 
+        'Location': redirectUrl 
+      },
     });
   } catch (error: any) {
     console.error("Error in gmail-auth-callback:", error);
