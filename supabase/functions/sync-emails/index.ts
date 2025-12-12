@@ -24,14 +24,24 @@ serve(async (req) => {
 
     console.log("Fetching Gmail tokens for user:", user.id);
 
-    // Get Gmail tokens
-    const { data: tokenData, error: tokenError } = await supabase
+    // Get Gmail tokens - use service role to bypass RLS since tokens were stored via callback
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    const { data: tokenData, error: tokenError } = await supabaseAdmin
       .from("gmail_tokens")
       .select("*")
       .eq("user_id", user.id)
       .single();
 
-    if (tokenError || !tokenData) {
+    if (tokenError) {
+      console.error("Token fetch error:", tokenError);
+      throw new Error("Gmail not connected");
+    }
+
+    if (!tokenData) {
       throw new Error("Gmail not connected");
     }
 
