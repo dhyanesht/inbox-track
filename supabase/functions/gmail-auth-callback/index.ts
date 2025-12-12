@@ -72,7 +72,7 @@ serve(async (req) => {
     console.log("Tokens stored successfully");
 
     // Get the app URL from the request origin or use a default
-    const appUrl = Deno.env.get("APP_URL") || "https://nmvzdwwqjwpgtboirfhe.lovable.app";
+    const appUrl = Deno.env.get("APP_URL") || "https://preview--inbox-track.lovable.app";
     
     // Redirect to the app with a success parameter
     // The app will handle closing the popup and notifying the parent
