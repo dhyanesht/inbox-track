@@ -109,58 +109,81 @@ serve(async (req) => {
 
     // Process each email
     for (const message of messages.slice(0, 20)) { // Process first 20 for performance
-      const emailResponse = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
+      try {
+        const emailResponse = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
 
-      const emailData = await emailResponse.json();
-      const headers = emailData.payload.headers;
-      const subject = headers.find((h: any) => h.name === "Subject")?.value || "";
-      const from = headers.find((h: any) => h.name === "From")?.value || "";
-      const snippet = emailData.snippet;
+        if (!emailResponse.ok) {
+          console.error(`Failed to fetch email ${message.id}`);
+          continue;
+        }
 
-      // Categorize email using AI
-      const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [
-            {
-              role: "system",
-              content: "You categorize job application emails. Return only ONE of: thank_you, interview, offer, rejection, other"
-            },
-            {
-              role: "user",
-              content: `Subject: ${subject}\nFrom: ${from}\nSnippet: ${snippet}\n\nCategorize this email.`
-            }
-          ],
-        }),
-      });
+        const emailData = await emailResponse.json();
+        const headers = emailData.payload?.headers || [];
+        const subject = headers.find((h: any) => h.name === "Subject")?.value || "";
+        const from = headers.find((h: any) => h.name === "From")?.value || "";
+        const snippet = emailData.snippet || "";
 
-      const aiData = await aiResponse.json();
-      const category = aiData.choices[0].message.content.trim().toLowerCase();
+        console.log(`Processing email: ${subject.substring(0, 50)}...`);
 
-      console.log(`Email categorized as: ${category}`);
-
-      // Match to application by company name
-      const matchedApp = applications?.find((app: any) => 
-        from.toLowerCase().includes(app.company_name.toLowerCase()) ||
-        subject.toLowerCase().includes(app.company_name.toLowerCase())
-      );
-
-      if (matchedApp && category !== "other") {
-        categorizedEmails.push({
-          application_id: matchedApp.id,
-          category,
-          subject,
-          from,
-          snippet,
+        // Categorize email using AI
+        const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [
+              {
+                role: "system",
+                content: "You categorize job application emails. Return only ONE of: thank_you, interview, offer, rejection, other"
+              },
+              {
+                role: "user",
+                content: `Subject: ${subject}\nFrom: ${from}\nSnippet: ${snippet}\n\nCategorize this email.`
+              }
+            ],
+          }),
         });
+
+        if (!aiResponse.ok) {
+          const errorText = await aiResponse.text();
+          console.error(`AI API error (${aiResponse.status}):`, errorText);
+          continue;
+        }
+
+        const aiData = await aiResponse.json();
+        
+        if (!aiData.choices || !aiData.choices[0]?.message?.content) {
+          console.error("Invalid AI response:", JSON.stringify(aiData));
+          continue;
+        }
+
+        const category = aiData.choices[0].message.content.trim().toLowerCase();
+        console.log(`Email categorized as: ${category}`);
+
+        // Match to application by company name
+        const matchedApp = applications?.find((app: any) => 
+          from.toLowerCase().includes(app.company_name.toLowerCase()) ||
+          subject.toLowerCase().includes(app.company_name.toLowerCase())
+        );
+
+        if (matchedApp && category !== "other") {
+          categorizedEmails.push({
+            application_id: matchedApp.id,
+            category,
+            subject,
+            from,
+            snippet,
+          });
+        }
+      } catch (emailError: any) {
+        console.error(`Error processing email ${message.id}:`, emailError.message);
+        continue;
       }
     }
 
