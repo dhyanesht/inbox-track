@@ -1,8 +1,8 @@
 package com.dino.inbox_track.service;
 
+import com.dino.inbox_track.client.GroqLangChainService;
 import com.dino.inbox_track.dto.OllamaGenerateRequest;
 import com.dino.inbox_track.dto.OllamaGenerateResponse;
-import com.dino.inbox_track.client.GroqLangChainService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -152,9 +152,7 @@ public class OllamaService {
 //                """.formatted(subjectsText.toString());
 
         String promptTemplate =
-                """
-                        Here is the revised version without any standalone empty string entries:
-                        
+                """     
                         You are an email subject line classifier that ONLY detects potential JOB APPLICATION or JOB OPPORTUNITY emails.
                         
                         Your task:

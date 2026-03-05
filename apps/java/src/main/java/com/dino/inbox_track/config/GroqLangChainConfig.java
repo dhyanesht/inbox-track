@@ -19,7 +19,7 @@ public class GroqLangChainConfig {
     @NotBlank
     private String apiKey;
     private String baseUrl = "https://api.groq.com/openai/v1";
-    private String modelName = "openai/gpt-oss-120b";
+    private String modelName = "this will not work because of something. Need to check why";
 
     @Bean
     public ChatModel groqModel() {
