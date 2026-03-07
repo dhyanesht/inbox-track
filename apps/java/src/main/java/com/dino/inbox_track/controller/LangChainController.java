@@ -1,6 +1,6 @@
 package com.dino.inbox_track.controller;
 
-import com.dino.inbox_track.dto.EmailApplication;
+import com.dino.inbox_track.dto.EmailDTO;
 import com.dino.inbox_track.prompt.SubjectClassifierTemplate;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.input.Prompt;
@@ -37,10 +37,10 @@ public class LangChainController {
     @GetMapping("/subject")
     public String emailSubjects() {
 
-        List<EmailApplication> subjects = List.of(
-                EmailApplication.builder().emailId("13846").subject("This is a subhect").build(),
-                EmailApplication.builder().emailId("13sada846").subject("Thisfdsfsdf is a subhect").build(),
-                EmailApplication.builder().emailId("13843536").subject("This is a dfg").build()
+        List<EmailDTO> subjects = List.of(
+                EmailDTO.builder().emailId("13846").subject("This is a subhect").build(),
+                EmailDTO.builder().emailId("13sada846").subject("Thisfdsfsdf is a subhect").build(),
+                EmailDTO.builder().emailId("13843536").subject("This is a dfg").build()
         );
         SubjectClassifierTemplate.SubjectClassifierPrompt subjectClassifierTemplate =
                 new SubjectClassifierTemplate.SubjectClassifierPrompt(subjects);

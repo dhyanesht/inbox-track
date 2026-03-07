@@ -1,8 +1,9 @@
 package com.dino.inbox_track.service;
 
-import com.dino.inbox_track.dto.EmailApplication;
 import com.dino.inbox_track.dto.EmailApplicationResponse;
+import com.dino.inbox_track.dto.EmailDTO;
 import com.dino.inbox_track.prompt.MessageClassifierTemplate;
+import com.dino.inbox_track.prompt.PromptSanitizer;
 import com.dino.inbox_track.prompt.SubjectClassifierTemplate;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -16,6 +17,7 @@ import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.input.Prompt;
 import dev.langchain4j.model.input.structured.StructuredPromptProcessor;
 import dev.langchain4j.model.openai.OpenAiTokenCountEstimator;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -23,30 +25,33 @@ import java.util.List;
 
 import static dev.langchain4j.model.openai.OpenAiChatModelName.GPT_5;
 
+@Slf4j
 @Service
 public class LangChainService {
 
     private final OpenAiTokenCountEstimator tokenCountEstimator;
     private final ChatModel chatModel;
     private final ObjectMapper objectMapper;
+    private final PromptSanitizer promptSanitizer;
 
-    public LangChainService(ChatModel chatModel) {
+    public LangChainService(ChatModel chatModel, PromptSanitizer promptSanitizer) {
         this.chatModel = chatModel;
         this.objectMapper = new ObjectMapper();
         this.tokenCountEstimator = new OpenAiTokenCountEstimator(GPT_5);
+        this.promptSanitizer = promptSanitizer;
     }
 
-    public List<EmailApplicationResponse> filterJobApplicationSubjects(List<EmailApplication> subjects) throws JsonProcessingException, InterruptedException {
+    public List<EmailApplicationResponse> filterJobApplicationSubjects(List<EmailDTO> subjects) throws JsonProcessingException, InterruptedException {
 
         int maxAllowedContextLength = 6000;
 
 
         List<EmailApplicationResponse> results = new ArrayList<>();
 
-        List<EmailApplication> batch = new ArrayList<>();
+        List<EmailDTO> batch = new ArrayList<>();
         int currentTokenCount = 0;
 
-        for (EmailApplication subject : subjects) {
+        for (EmailDTO subject : subjects) {
             // Estimate token count for this single subject
             String subjectJson = objectMapper.writeValueAsString(subject);
             int subjectTokenCount = tokenCountEstimator.estimateTokenCountInText(subjectJson);
@@ -76,12 +81,14 @@ public class LangChainService {
         return results;
     }
 
-    private List<EmailApplicationResponse> processBatch(List<EmailApplication> batch, OpenAiTokenCountEstimator tokenCountEstimator, ObjectMapper objectMapper) throws JsonProcessingException, InterruptedException {
+    private List<EmailApplicationResponse> processBatch(List<EmailDTO> batch, OpenAiTokenCountEstimator tokenCountEstimator, ObjectMapper objectMapper) throws JsonProcessingException, InterruptedException {
 
         SubjectClassifierTemplate.SubjectClassifierPrompt promptTemplate = new SubjectClassifierTemplate.SubjectClassifierPrompt(batch);
         Prompt prompt = StructuredPromptProcessor.toPrompt(promptTemplate);
         String promptText = prompt.text();
-
+        log.info(" prompt length before sanitizing {}", promptText.length());
+        promptText = PromptSanitizer.sanitizeNames(promptText);
+        log.info(" prompt length after sanitizing {}", promptText.length());
         // Optionally log token count per batch
         int tokenCount = tokenCountEstimator.estimateTokenCountInText(promptText);
         System.out.println("Batch with " + batch.size() + " subjects → " + tokenCount + " tokens");
@@ -96,13 +103,16 @@ public class LangChainService {
     }
 
 
-    public String processEmailApplication(EmailApplication emailApp) throws InterruptedException {
+    public String processEmailApplication(EmailDTO emailApp) throws InterruptedException {
 
         var message = trimToTokenLimitSmart(emailApp.getMessage(), 5000, tokenCountEstimator);
         emailApp.setMessage(message);
         MessageClassifierTemplate.MessageClassifierPrompt promptTemplate = new MessageClassifierTemplate.MessageClassifierPrompt(emailApp);
         Prompt prompt = StructuredPromptProcessor.toPrompt(promptTemplate);
         String promptText = prompt.text();
+        log.info(" prompt length before sanitizing {}", promptText.length());
+        promptText = PromptSanitizer.sanitizeNames(promptText);
+        log.info(" prompt length after sanitizing {}", promptText.length());
 
         // Optionally log token count per batch
         int tokenCount = tokenCountEstimator.estimateTokenCountInText(promptText);

@@ -1,9 +1,9 @@
 package com.dino.inbox_track.service;
 
 import com.dino.inbox_track.client.GmailClientFactory;
-import com.dino.inbox_track.dto.EmailApplication;
 import com.dino.inbox_track.dto.EmailApplicationClassification;
 import com.dino.inbox_track.dto.EmailApplicationResponse;
+import com.dino.inbox_track.dto.EmailDTO;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,7 +13,6 @@ import com.google.api.services.gmail.model.ListMessagesResponse;
 import com.google.api.services.gmail.model.Message;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -33,9 +32,11 @@ public class GmailService {
     private static final String USER = "me";
     private final GmailClientFactory gmailClientFactory;
     private final EmailParsingService emailParsingService;
+    private final EmailService emailService;
+    private final JobService jobService;
     private final OllamaService ollamaService;
-    @Autowired
     private final LangChainService langChainService;
+
 
     public List<String> getLabelNames() throws Exception {
         var response = gmailService().users().labels().list("me").execute();
@@ -53,17 +54,18 @@ public class GmailService {
         List<String> messageIds = getMessageIdsDateRange(service, USER, startDate.format(DateTimeFormatter.ofPattern(
                 "yyyy/MM/dd")), endDate.format(DateTimeFormatter.ofPattern("yyyy/MM/dd")), 50);
 
-        List<EmailApplication> results = new ArrayList<>();
+        List<EmailDTO> results = new ArrayList<>();
+        // messageIds = messageIds.subList(0, 3);
         for (String msgId : messageIds) {
             var message = service.users().messages().get("me", msgId).setFormat("full").execute();
 
             String subject = emailParsingService.extractHeader(message, "Subject");
+            String from = emailParsingService.extractHeader(message, "from");
             String body = emailParsingService.extractPlainText(message.getPayload());
-            results.add(EmailApplication.builder().emailId(msgId).subject(subject).message(body).build());
+            results.add(EmailDTO.builder().emailId(msgId).from(from).subject(subject).message(body).build());
         }
-        // save email details to database
-        // Classify email using LLM
 
+        // Classify email using LLM
         List<EmailApplicationResponse> jobResponses = langChainService.filterJobApplicationSubjects(results);
         jobResponses = jobResponses.stream().filter(EmailApplicationResponse::getIsJobApplication).toList();
 
@@ -76,11 +78,11 @@ public class GmailService {
                 ));
 
         // Filter original results to ONLY job applications
-        List<EmailApplication> jobApplications = results.stream()
+        List<EmailDTO> jobApplications = results.stream()
                 .filter(email -> jobResponseByEmailId.containsKey(email.getEmailId()))  // Only job apps
                 .map(email -> {
                     EmailApplicationResponse resp = jobResponseByEmailId.get(email.getEmailId());
-                    return EmailApplication.builder()
+                    return EmailDTO.builder()
                             .emailId(email.getEmailId())
                             .subject(email.getSubject())
                             .message(email.getMessage())
@@ -88,6 +90,9 @@ public class GmailService {
                 })
                 .toList();
 
+        log.info("job Applications: {}", jobApplications);
+        // save email details to database
+        jobApplications.forEach(emailService::saveEmail);
 
         // Then call your function on each item
         List<String> llmMessageClassificationResponse = new ArrayList<>();
@@ -107,6 +112,20 @@ public class GmailService {
 
         List<EmailApplicationClassification> classificationList =
                 parseClassificationResponse(llmMessageClassificationResponse);
+
+        /* There is a big business logic that needs to be handled.
+            This keeps creating new jobs. It has to check
+            if the job is already existing and add it as an event. Tricky.
+            Job ID will not be in the email so composite key = company+title?
+            What happens if I apply to same job twice?
+            What happens if I apply to same company different roles?
+            What happens if I apply now, rejected and then Apply again in a span of 3 months?
+            What happens if the interview is rescheduled?
+
+            we just keep creating new jobs and events.
+
+         */
+        classificationList.forEach(jobService::saveJob);
 
         return classificationList;
     }

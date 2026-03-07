@@ -1,10 +1,9 @@
 package com.dino.inbox_track.prompt;
 
-import com.dino.inbox_track.dto.EmailApplication;
+import com.dino.inbox_track.dto.EmailDTO;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.model.input.structured.StructuredPrompt;
-import lombok.Getter;
 
 import java.util.List;
 
@@ -15,7 +14,7 @@ public class SubjectClassifierTemplate {
         public String emailId;
         public String subject;
 
-        public EmailSubjectData(EmailApplication email) {
+        public EmailSubjectData(EmailDTO email) {
             this.emailId = email.getEmailId();
             this.subject = email.getSubject();
         }
@@ -74,7 +73,7 @@ public class SubjectClassifierTemplate {
 
         private final String emailSubjectsJson;
 
-        public SubjectClassifierPrompt(List<EmailApplication> emailSubjects) {
+        public SubjectClassifierPrompt(List<EmailDTO> emailSubjects) {
             List<EmailSubjectData> subjectData = emailSubjects.stream()
                     .map(EmailSubjectData::new)
                     .toList();

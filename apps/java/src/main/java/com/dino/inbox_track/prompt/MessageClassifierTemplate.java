@@ -1,10 +1,9 @@
 package com.dino.inbox_track.prompt;
 
-import com.dino.inbox_track.dto.EmailApplication;
+import com.dino.inbox_track.dto.EmailDTO;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.model.input.structured.StructuredPrompt;
-import lombok.Getter;
 
 public class MessageClassifierTemplate {
 
@@ -16,7 +15,7 @@ public class MessageClassifierTemplate {
             
             Output: A single JSON object that:
               - Includes all original fields: "emailId", "from", "to", "subject", "message".
-              - Adds:
+              - Add:
                 "IsJobApplication": true if clearly about a job application or opportunity, false otherwise.
               - If IsJobApplication is true, also add:
                 "Company"
@@ -88,7 +87,7 @@ public class MessageClassifierTemplate {
 
         private final String emailJson;
 
-        public MessageClassifierPrompt(EmailApplication emailSubjects) {
+        public MessageClassifierPrompt(EmailDTO emailSubjects) {
             this.emailJson = toJson(emailSubjects);
         }
 
