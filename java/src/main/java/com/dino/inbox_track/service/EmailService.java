@@ -3,6 +3,8 @@ package com.dino.inbox_track.service;
 import com.dino.inbox_track.db.Email;
 import com.dino.inbox_track.db.EmailRepository;
 import com.dino.inbox_track.dto.EmailDTO;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,4 +32,20 @@ public class EmailService {
         emailRepository.save(email);
     }
 
+    @Transactional
+  public void saveAllEmails(List<EmailDTO> jobApplications) {
+    List<Email> emails = new ArrayList<>();
+    for (EmailDTO dto : jobApplications) {
+      emails.add(
+          Email.builder()
+              .messageId(dto.getEmailId())
+              .subject(dto.getSubject())
+              .date(dto.getDate())
+              .from(dto.getFrom())
+              .body(dto.getMessage().substring(0, 200))
+              .application(null) // Link later via business logic
+              .build());
+    }
+    emailRepository.saveAll(emails);
+  }
 }

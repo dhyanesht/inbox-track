@@ -30,12 +30,14 @@ public class LangChainController {
     public String helloWorld() {
         log.info(chatModel.provider().toString());
         log.info(chatModel.supportedCapabilities().toString());
+        log.info(chatModel.defaultRequestParameters().modelName());
         return chatModel.chat("Say Hello World!");
     }
 
 
     @GetMapping("/subject")
     public String emailSubjects() {
+
 
         List<EmailDTO> subjects = List.of(
                 EmailDTO.builder().emailId("13846").subject("This is a subhect").build(),

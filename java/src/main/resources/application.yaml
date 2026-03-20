@@ -4,7 +4,7 @@ spring:
 
 
   datasource:
-    url: ${DB_JDBC_URL:jdbc:postgresql://<DB_HOST>:5432/<DB_NAME>?sslmode=require&tcpKeepAlive=true}
+    url: ${DB_JDBC_URL:jdbc:postgresql://${DB_HOST:localhost}:5432/${DB_NAME:postgres}?sslmode=require&tcpKeepAlive=true}
     username: ${DB_USER:postgres}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
@@ -30,17 +30,18 @@ spring:
         format_sql: false
 
   flyway:
-    enabled: true
+    enabled: false
     baseline-on-migrate: true  # Handles existing Supabase tables gracefully
     schema: job_track
     locations: classpath:db/migration
 
-logging:
-  level:
-    org.flywaydb: DEBUG
-    org.springframework.jdbc: DEBUG
-    org.hibernate.SQL: DEBUG              # Print SQL statements
-    org.hibernate.type.descriptor.sql: TRACE  # Print SQL bind parameters
+#logging:
+#  level:
+#    org.flywaydb: DEBUG
+#    org.springframework.jdbc: DEBUG
+#    org.hibernate.SQL: DEBUG              # Print SQL statements
+#    org.hibernate.type.descriptor.sql: TRACE  # Print SQL bind parameters
+#    root: DEBUG
 
 resilience4j:
   circuitbreaker:
@@ -60,6 +61,13 @@ resilience4j:
         failureRateThreshold: 50
         waitDurationInOpenState: 30s
         permittedNumberOfCallsInHalfOpenState: 3
+  retry:
+    instances:
+      gmailApi:
+        max-attempts: 5
+        wait-duration: 2s
+        retry-exceptions:
+          - com.google.api.client.googleapis.json.GoogleJsonResponseException
 
 management:
   endpoints:
@@ -70,3 +78,8 @@ management:
 groq:
   api-key: ${GROQ_API_KEY:fallback-key}
   model-name: openai/gpt-oss-120b
+
+gmail:
+  credentials-path: ${GMAIL_CREDENTIALS_PATH:/tokens/credentials.json}
+  tokens-directory: ${GMAIL_TOKEN_DIRECTORY:/tokens}
+  application-name: Inbox Track Spring Boot

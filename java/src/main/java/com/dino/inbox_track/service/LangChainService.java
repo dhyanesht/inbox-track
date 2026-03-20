@@ -1,5 +1,7 @@
 package com.dino.inbox_track.service;
 
+import static dev.langchain4j.model.openai.OpenAiChatModelName.GPT_5;
+
 import com.dino.inbox_track.dto.EmailApplicationResponse;
 import com.dino.inbox_track.dto.EmailDTO;
 import com.dino.inbox_track.prompt.MessageClassifierTemplate;
@@ -17,13 +19,10 @@ import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.input.Prompt;
 import dev.langchain4j.model.input.structured.StructuredPromptProcessor;
 import dev.langchain4j.model.openai.OpenAiTokenCountEstimator;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-
 import java.util.ArrayList;
 import java.util.List;
-
-import static dev.langchain4j.model.openai.OpenAiChatModelName.GPT_5;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
@@ -58,7 +57,7 @@ public class LangChainService {
 
             // If this subject by itself is too big, ignore it (don’t add to any batch)
             if (subjectTokenCount > maxAllowedContextLength) {
-                System.out.println("Skipping subject (too big): " + subject.getEmailId() + " " + subject.getSubject());
+                log.info("Skipping subject (too big): {} , {} ", subject.getEmailId(), subject.getSubject());
                 continue;
             }
             // If this subject by itself is too big, still add it (you can’t skip)
@@ -166,6 +165,7 @@ public class LangChainService {
         String result = text.substring(0, left);
         int finalTokens = estimator.estimateTokenCountInText(result);
         System.out.println("Trimmed from " + tokenCount + " to " + finalTokens + " tokens");
+        log.info("Trimmed from {} to {} tokens", tokenCount, finalTokens);
         return result;
     }
 

@@ -1,9 +1,10 @@
 package com.dino.inbox_track.service;
 
-import com.dino.inbox_track.client.GmailClientFactory;
+import com.dino.inbox_track.client.GmailServiceFactory;
 import com.dino.inbox_track.dto.EmailApplicationClassification;
 import com.dino.inbox_track.dto.EmailApplicationResponse;
 import com.dino.inbox_track.dto.EmailDTO;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,18 +12,18 @@ import com.google.api.services.gmail.Gmail;
 import com.google.api.services.gmail.model.Label;
 import com.google.api.services.gmail.model.ListMessagesResponse;
 import com.google.api.services.gmail.model.Message;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
@@ -30,7 +31,7 @@ import java.util.stream.Collectors;
 public class GmailService {
 
     private static final String USER = "me";
-    private final GmailClientFactory gmailClientFactory;
+    private final GmailServiceFactory gmailServiceFactory;
     private final EmailParsingService emailParsingService;
     private final EmailService emailService;
     private final JobService jobService;
@@ -51,11 +52,62 @@ public class GmailService {
         LocalDate endDate = LocalDate.now();  // 2026/02/14
         LocalDate startDate = endDate.minusDays(daysBack);  // 2026/02/09
 
-        List<String> messageIds = getMessageIdsDateRange(service, USER, startDate.format(DateTimeFormatter.ofPattern(
-                "yyyy/MM/dd")), endDate.format(DateTimeFormatter.ofPattern("yyyy/MM/dd")), 50);
+        List<String> messageIds = fetchMessageIds(service, startDate, endDate);
+        int batchSize = 10;
+        List<EmailApplicationClassification> allClassifications = new ArrayList<>();
+        for (int i = 0; i < messageIds.size(); i += batchSize) {
+            List<String> batchIds = messageIds.subList(i, Math.min(i + batchSize, messageIds.size()));
+            List<EmailDTO> emails = fetchEmails(service, batchIds);
+            List<EmailDTO> jobApplications = filterJobApplications(emails);
+            // Batch DB write
+            emailService.saveAllEmails(jobApplications);
+            List<EmailApplicationClassification> classifications =
+                classifyApplications(jobApplications);
+            jobService.saveAllApplicationEvents(classifications);
+            allClassifications.addAll(classifications);
 
+            log.info("Processed batch {} - {} ({} emails, {} job apps)",
+                i, i + batchSize,
+                emails.size(),
+                jobApplications.size());
+        }
+        return allClassifications;
+    }
+
+    private List<EmailApplicationClassification> classifyApplications(List<EmailDTO> jobApplications) {
+        List<String> responses = jobApplications.stream()
+            .map(email -> {
+                try {
+                    return langChainService.processEmailApplication(email);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Interrupted while processing email", e);
+                }
+            })
+            .toList();
+
+        return parseClassificationResponse(responses);
+
+    }
+
+
+    private List<EmailDTO> filterJobApplications(List<EmailDTO> emails) throws JsonProcessingException, InterruptedException {
+        // Classify email using LLM
+        List<EmailApplicationResponse> jobResponses = langChainService.filterJobApplicationSubjects(emails);
+
+        Set<String> jobEmailIds = jobResponses.stream()
+            .filter(EmailApplicationResponse::getIsJobApplication)
+            .map(EmailApplicationResponse::getEmailId)
+            .collect(Collectors.toSet());
+
+        // Filter original results to ONLY job applications
+        return emails.stream()
+            .filter(email -> jobEmailIds.contains(email.getEmailId()))
+            .toList();
+    }
+
+    private List<EmailDTO> fetchEmails(Gmail service, List<String> messageIds) throws IOException {
         List<EmailDTO> results = new ArrayList<>();
-        // messageIds = messageIds.subList(0, 3);
         for (String msgId : messageIds) {
             var message = service.users().messages().get("me", msgId).setFormat("full").execute();
 
@@ -64,70 +116,12 @@ public class GmailService {
             String body = emailParsingService.extractPlainText(message.getPayload());
             results.add(EmailDTO.builder().emailId(msgId).from(from).subject(subject).message(body).build());
         }
+        return results;
+    }
 
-        // Classify email using LLM
-        List<EmailApplicationResponse> jobResponses = langChainService.filterJobApplicationSubjects(results);
-        jobResponses = jobResponses.stream().filter(EmailApplicationResponse::getIsJobApplication).toList();
-
-        // Create Map for lookup (only job applications)
-        Map<String, EmailApplicationResponse> jobResponseByEmailId = jobResponses.stream()
-                .collect(Collectors.toMap(
-                        EmailApplicationResponse::getEmailId,
-                        r -> r,
-                        (a, b) -> b
-                ));
-
-        // Filter original results to ONLY job applications
-        List<EmailDTO> jobApplications = results.stream()
-                .filter(email -> jobResponseByEmailId.containsKey(email.getEmailId()))  // Only job apps
-                .map(email -> {
-                    EmailApplicationResponse resp = jobResponseByEmailId.get(email.getEmailId());
-                    return EmailDTO.builder()
-                            .emailId(email.getEmailId())
-                            .subject(email.getSubject())
-                            .message(email.getMessage())
-                            .build();
-                })
-                .toList();
-
-        log.info("job Applications: {}", jobApplications);
-        // save email details to database
-        jobApplications.forEach(emailService::saveEmail);
-
-        // Then call your function on each item
-        List<String> llmMessageClassificationResponse = new ArrayList<>();
-        AtomicInteger counter = new AtomicInteger(0);
-        jobApplications.forEach(emailApp -> {
-            try {
-                int current = counter.incrementAndGet();
-                log.info("Processing {}/{}: {}",
-                        current, jobApplications.size(), emailApp.getSubject());
-
-                var response = langChainService.processEmailApplication(emailApp);
-                llmMessageClassificationResponse.add(response);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-        List<EmailApplicationClassification> classificationList =
-                parseClassificationResponse(llmMessageClassificationResponse);
-
-        /* There is a big business logic that needs to be handled.
-            This keeps creating new jobs. It has to check
-            if the job is already existing and add it as an event. Tricky.
-            Job ID will not be in the email so composite key = company+title?
-            What happens if I apply to same job twice?
-            What happens if I apply to same company different roles?
-            What happens if I apply now, rejected and then Apply again in a span of 3 months?
-            What happens if the interview is rescheduled?
-
-            we just keep creating new jobs and events.
-
-         */
-        classificationList.forEach(jobService::saveJob);
-
-        return classificationList;
+    private List<String> fetchMessageIds(Gmail service, LocalDate startDate, LocalDate endDate) throws IOException {
+        return getMessageIdsDateRange(service, USER, startDate.format(DateTimeFormatter.ofPattern(
+            "yyyy/MM/dd")), endDate.format(DateTimeFormatter.ofPattern("yyyy/MM/dd")), 50);
     }
 
 
@@ -214,12 +208,20 @@ public class GmailService {
     }
 
     private Gmail gmailService() throws Exception {
-        return gmailClientFactory.getService();
+        return gmailServiceFactory.getService();
     }
 
+    @Retry(name = "gmailApi", fallbackMethod = "getFullMessageFallback")
+    @CircuitBreaker(name = "classifyEmail")
     public String getFullMessage(String messageId) throws Exception {
         var message = gmailService().users().messages().get(USER, messageId).setFormat("full").execute();
         return emailParsingService.extractPlainText(message.getPayload());
+    }
+
+    // Optional fallback
+    public String getFullMessageFallback(String messageId, Throwable t) {
+        log.warn("Failed to fetch Gmail message {} after retries", messageId, t);
+        return "";
     }
 
 }

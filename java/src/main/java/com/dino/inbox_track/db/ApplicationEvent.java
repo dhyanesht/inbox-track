@@ -12,14 +12,19 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import lombok.Builder.Default;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "application_events", schema = "job_track")
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class ApplicationEvent {
 
     @Id
@@ -27,7 +32,7 @@ public class ApplicationEvent {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "application_id", nullable = false)
+    @JoinColumn(name = "application_id", nullable = true)
     private JobApplication application;
 
     @Enumerated(EnumType.STRING)
