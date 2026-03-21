@@ -64,7 +64,7 @@ public class LangChainService {
             // If this subject by itself is too big, still add it (you can’t skip)
             if (currentTokenCount + subjectTokenCount > maxAllowedContextLength && !batch.isEmpty()) {
                 // Send current batch
-                results.addAll(processBatch(batch, tokenCountEstimator, objectMapper));
+                results.addAll(processBatch(batch, objectMapper));
                 batch.clear();
                 currentTokenCount = 0;
             }
@@ -75,7 +75,7 @@ public class LangChainService {
 
         // send the final batch
         if (!batch.isEmpty()) {
-            results.addAll(processBatch(batch, tokenCountEstimator, objectMapper));
+            results.addAll(processBatch(batch, objectMapper));
         }
 
         return results;
