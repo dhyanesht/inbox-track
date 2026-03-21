@@ -6,6 +6,8 @@ import com.dino.inbox_track.db.ApplicationStatus;
 import com.dino.inbox_track.db.EventType;
 import com.dino.inbox_track.db.JobApplication;
 import com.dino.inbox_track.db.JobApplicationRepository;
+import com.dino.inbox_track.dto.ApplicationEventDto;
+import com.dino.inbox_track.dto.ApplicationEventMapper;
 import com.dino.inbox_track.dto.EmailApplicationClassification;
 import jakarta.transaction.Transactional;
 import java.time.OffsetDateTime;
@@ -112,5 +114,10 @@ public class JobService {
                 .build());
         }
         applicationEventRepository.saveAll(events);
+    }
+
+    public List<ApplicationEventDto> listApplications() {
+        System.out.println(applicationEventRepository.findAll());
+        return applicationEventRepository.findAll().stream().map(ApplicationEventMapper::toDto).toList();
     }
 }

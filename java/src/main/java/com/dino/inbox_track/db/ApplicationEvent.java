@@ -18,6 +18,7 @@ import lombok.Builder;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import lombok.Builder.Default;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
@@ -25,6 +26,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Getter
 public class ApplicationEvent {
 
     @Id
