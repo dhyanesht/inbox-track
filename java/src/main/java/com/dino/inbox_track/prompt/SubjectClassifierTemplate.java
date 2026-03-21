@@ -4,15 +4,18 @@ import com.dino.inbox_track.dto.EmailDTO;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.model.input.structured.StructuredPrompt;
-
 import java.util.List;
+
 
 public class SubjectClassifierTemplate {
 
+    private SubjectClassifierTemplate() {
 
+    }
     public static class EmailSubjectData {
-        public String emailId;
-        public String subject;
+
+        public final String emailId;
+        public final String subject;
 
         public EmailSubjectData(EmailDTO email) {
             this.emailId = email.getEmailId();
@@ -78,7 +81,6 @@ public class SubjectClassifierTemplate {
                     .map(EmailSubjectData::new)
                     .toList();
             this.emailSubjectsJson = toJson(subjectData);
-            System.out.println(emailSubjectsJson);
         }
 
         private static String toJson(Object value) {

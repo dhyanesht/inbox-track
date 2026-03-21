@@ -8,13 +8,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
-
-import java.util.List;
-import java.util.Map;
 
 @Service
 public class OllamaService {
@@ -38,7 +36,7 @@ public class OllamaService {
         return "This is fallback";
     }
 
-    @CircuitBreaker(name = "classifyEmail", fallbackMethod = "classifyEmailFallback")
+    //    @CircuitBreaker(name = "classifyEmail", fallbackMethod = "classifyEmailFallback")
     public String classifyEmail(String emailBody, String subject) {
         String prompt = String.format(
                 """

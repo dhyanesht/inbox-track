@@ -12,9 +12,8 @@ import com.google.api.services.gmail.Gmail;
 import com.google.api.services.gmail.model.Label;
 import com.google.api.services.gmail.model.ListMessagesResponse;
 import com.google.api.services.gmail.model.Message;
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import io.github.resilience4j.retry.annotation.Retry;
 import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -66,8 +65,8 @@ public class GmailService {
             jobService.saveAllApplicationEvents(classifications);
             allClassifications.addAll(classifications);
 
-            log.info("Processed batch {} - {} ({} emails, {} job apps)",
-                i, i + batchSize,
+            log.info("Processed {} / {} (Current Batch: {} emails, {} job apps)",
+                i + batchSize, messageIds.size(),
                 emails.size(),
                 jobApplications.size());
         }
@@ -152,7 +151,7 @@ public class GmailService {
                                 .build();
                     }
                 })
-                .collect(Collectors.toList());
+            .toList();
     }
 
     private String extractEmailIdFromJson(String json) {
@@ -207,12 +206,12 @@ public class GmailService {
 
     }
 
-    private Gmail gmailService() throws Exception {
+    private Gmail gmailService() throws IOException, GeneralSecurityException {
         return gmailServiceFactory.getService();
     }
 
-    @Retry(name = "gmailApi", fallbackMethod = "getFullMessageFallback")
-    @CircuitBreaker(name = "classifyEmail")
+    //    @Retry(name = "gmailApi", fallbackMethod = "getFullMessageFallback")
+//    @CircuitBreaker(name = "classifyEmail")
     public String getFullMessage(String messageId) throws Exception {
         var message = gmailService().users().messages().get(USER, messageId).setFormat("full").execute();
         return emailParsingService.extractPlainText(message.getPayload());

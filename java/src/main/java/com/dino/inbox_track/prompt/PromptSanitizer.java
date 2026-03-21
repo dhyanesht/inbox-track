@@ -1,35 +1,25 @@
 package com.dino.inbox_track.prompt;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
-
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 @Component
 public class PromptSanitizer {
 
-    private static List<String> bannedWords = List.of();
+    private final List<String> sensitiveValues;
 
-    public PromptSanitizer(
-            @Value("${app.banned.words:}") String bannedWordsStr) {
-        bannedWords = Optional.of(bannedWordsStr)
-                .filter(str -> !str.isEmpty())
-                .map(str -> Arrays.asList(str.split(",")))
-                .orElse(List.of())
-                .stream()
-                .map(String::trim)
-                .filter(word -> !word.isEmpty())
-                .collect(Collectors.toList());
+    public PromptSanitizer(@Value("${app.sensitive.values:}") String values) {
+        this.sensitiveValues = Arrays.stream(values.split(",")).map(String::trim).filter(v -> !v.isEmpty()).toList();
     }
 
-    // TODO: Write Test. This is not working. Check it.
-    public static String sanitizeNames(String prompt) {
-        return bannedWords.stream()
-                .map(Pattern::quote)
-                .reduce(prompt, (str, escaped) -> str.replace(escaped, ""), (a, b) -> a);
+
+    public String sanitize(String input) {
+        return sensitiveValues.stream()
+            .reduce(input, (str, word) ->
+                    str.replaceAll("(?i)" + Pattern.quote(word), ""),
+                (a, b) -> a);
     }
 }

@@ -75,11 +75,16 @@ management:
       exposure:
         include: health,circuitbreakers
 
-groq:
-  api-key: ${GROQ_API_KEY:fallback-key}
-  model-name: openai/gpt-oss-120b
+llm:
+  base-url: ${LLM_BASE_URL:http://localhost:11434}
+  api-key: ${LLM_API_KEY:fallback-key}
+  model-name: ${LLM_MODEL_NAME:openai/gpt-oss-120b}
 
 gmail:
   credentials-path: ${GMAIL_CREDENTIALS_PATH:/tokens/credentials.json}
   tokens-directory: ${GMAIL_TOKEN_DIRECTORY:/tokens}
   application-name: Inbox Track Spring Boot
+
+app:
+  sensitive:
+    values: ${SENSITIVE_VALUES:NAMES}

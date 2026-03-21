@@ -2,6 +2,7 @@ package com.dino.inbox_track.service;
 
 import static dev.langchain4j.model.openai.OpenAiChatModelName.GPT_5;
 
+import com.dino.inbox_track.client.CustomLLMChatModel;
 import com.dino.inbox_track.dto.EmailApplicationResponse;
 import com.dino.inbox_track.dto.EmailDTO;
 import com.dino.inbox_track.prompt.MessageClassifierTemplate;
@@ -33,7 +34,7 @@ public class LangChainService {
     private final ObjectMapper objectMapper;
     private final PromptSanitizer promptSanitizer;
 
-    public LangChainService(ChatModel chatModel, PromptSanitizer promptSanitizer) {
+    public LangChainService(CustomLLMChatModel chatModel, PromptSanitizer promptSanitizer) {
         this.chatModel = chatModel;
         this.objectMapper = new ObjectMapper();
         this.tokenCountEstimator = new OpenAiTokenCountEstimator(GPT_5);
@@ -80,23 +81,16 @@ public class LangChainService {
         return results;
     }
 
-    private List<EmailApplicationResponse> processBatch(List<EmailDTO> batch, OpenAiTokenCountEstimator tokenCountEstimator, ObjectMapper objectMapper) throws JsonProcessingException, InterruptedException {
+    private List<EmailApplicationResponse> processBatch(List<EmailDTO> batch, ObjectMapper objectMapper)
+        throws JsonProcessingException {
 
         SubjectClassifierTemplate.SubjectClassifierPrompt promptTemplate = new SubjectClassifierTemplate.SubjectClassifierPrompt(batch);
         Prompt prompt = StructuredPromptProcessor.toPrompt(promptTemplate);
         String promptText = prompt.text();
         log.info(" prompt length before sanitizing {}", promptText.length());
-        promptText = PromptSanitizer.sanitizeNames(promptText);
+        promptText = promptSanitizer.sanitize(promptText);
         log.info(" prompt length after sanitizing {}", promptText.length());
-        // Optionally log token count per batch
-        int tokenCount = tokenCountEstimator.estimateTokenCountInText(promptText);
-        System.out.println("Batch with " + batch.size() + " subjects → " + tokenCount + " tokens");
-
         String response = chatModel.chat(promptText);
-
-//        System.out.println(response);
-        Thread.sleep(60000);
-
         return objectMapper.readValue(response, new TypeReference<List<EmailApplicationResponse>>() {
         });
     }
@@ -110,18 +104,13 @@ public class LangChainService {
         Prompt prompt = StructuredPromptProcessor.toPrompt(promptTemplate);
         String promptText = prompt.text();
         log.info(" prompt length before sanitizing {}", promptText.length());
-        promptText = PromptSanitizer.sanitizeNames(promptText);
+        promptText = promptSanitizer.sanitize(promptText);
         log.info(" prompt length after sanitizing {}", promptText.length());
 
         // Optionally log token count per batch
-        int tokenCount = tokenCountEstimator.estimateTokenCountInText(promptText);
-        System.out.println(tokenCount + " tokens");
-        Thread.sleep(60000);
         ChatRequest chatRequest = ChatRequest.builder().messages(new ChatMessage[]{UserMessage.from(promptText)}).build();
         ChatResponse chatResponse = chatModel.chat(chatRequest);
-        var aiMessage = chatResponse.aiMessage().text();
-        return aiMessage;
-
+        return chatResponse.aiMessage().text();
 
     }
 
@@ -164,7 +153,6 @@ public class LangChainService {
 
         String result = text.substring(0, left);
         int finalTokens = estimator.estimateTokenCountInText(result);
-        System.out.println("Trimmed from " + tokenCount + " to " + finalTokens + " tokens");
         log.info("Trimmed from {} to {} tokens", tokenCount, finalTokens);
         return result;
     }

@@ -1,19 +1,22 @@
 package com.dino.inbox_track.controller;
 
+import static dev.langchain4j.model.openai.OpenAiChatModelName.GPT_5;
+
+import com.dino.inbox_track.client.CustomLLMChatModel;
 import com.dino.inbox_track.dto.EmailDTO;
 import com.dino.inbox_track.prompt.SubjectClassifierTemplate;
+import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.input.Prompt;
 import dev.langchain4j.model.input.structured.StructuredPromptProcessor;
 import dev.langchain4j.model.openai.OpenAiTokenCountEstimator;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.interceptor.MatchAlwaysTransactionAttributeSource;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
-
-import static dev.langchain4j.model.openai.OpenAiChatModelName.GPT_5;
 
 @RestController
 @RequestMapping("/lc")
@@ -22,8 +25,8 @@ public class LangChainController {
 
     private final ChatModel chatModel;
 
-    public LangChainController(ChatModel chatModel) {
-        this.chatModel = chatModel;
+    public LangChainController(CustomLLMChatModel customLLMChatModel) {
+        this.chatModel = customLLMChatModel;
     }
 
     @GetMapping("/hw")
@@ -31,6 +34,11 @@ public class LangChainController {
         log.info(chatModel.provider().toString());
         log.info(chatModel.supportedCapabilities().toString());
         log.info(chatModel.defaultRequestParameters().modelName());
+        return chatModel.chat("Say Hello World!");
+    }
+
+    @GetMapping("/llm")
+    public String helloWorldLLLm() {
         return chatModel.chat("Say Hello World!");
     }
 

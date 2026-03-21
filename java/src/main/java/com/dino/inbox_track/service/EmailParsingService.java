@@ -3,10 +3,9 @@ package com.dino.inbox_track.service;
 import com.google.api.services.gmail.model.Message;
 import com.google.api.services.gmail.model.MessagePart;
 import com.google.api.services.gmail.model.MessagePartHeader;
-import org.springframework.stereotype.Service;
-
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import org.springframework.stereotype.Service;
 
 @Service
 public class EmailParsingService {
