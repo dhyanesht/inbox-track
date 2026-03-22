@@ -5,15 +5,13 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import java.time.Instant;
+import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDate;
-import java.util.UUID;
 
 @Entity
 @Table(name = "emails", schema = "job_track")
@@ -26,12 +24,11 @@ public class Email {
     @Id
     @GeneratedValue
     private UUID id;
+    @Column(unique = true, nullable = false)
     private String messageId;
     @Column(name = "from_email") // from is reserved keyword
     private String from;
-    private LocalDate date;
+    private Instant date;
     private String subject;
     private String body;
-    @OneToOne
-    private ApplicationEvent application;
 }

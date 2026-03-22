@@ -23,7 +23,7 @@ public class MessageClassifierTemplate {
                 "PositionTitle"
                 "PositionLocation"
                 "Salary"
-                "ApplicationStage"            // e.g., "application submitted", "interview", "offer"
+                "ApplicationStage"            // e.g., "application submitted", "interview", "offer", "recruiter reachout"
                 "JobId"                       // any reference ID mentioned
                 "ApplicationStatus"           // e.g., "submitted", "review", "rejected", "offer"
                 "NextStep"                    // e.g., "awaiting feedback", "interview scheduled"
@@ -33,7 +33,7 @@ public class MessageClassifierTemplate {
                 "EmploymentType"              // e.g., "full-time", "contract", "internship"
                 "ExperienceLevel"             // e.g., "Junior", "Mid-level", "Senior"
                 "HiringManager"               // name of the person, if mentioned
-              If any field is not present, omit it or set it to null.
+          If any field is not present set it to null.
             
             Classification Rules:
             - Mark true if content mentions: apply, application, interview, candidate, resume, CV, position, role, job, opportunity, recruiter, or a specific job title (case‑insensitive).
@@ -82,17 +82,15 @@ public class MessageClassifierTemplate {
             """})
     public static class MessageClassifierPrompt {
 
-        private static final ObjectMapper MAPPER = new ObjectMapper();
-
         private final String emailJson;
 
-        public MessageClassifierPrompt(EmailDTO emailSubjects) {
-            this.emailJson = toJson(emailSubjects);
+        public MessageClassifierPrompt(EmailDTO emailSubjects, ObjectMapper mapper) {
+            this.emailJson = toJson(emailSubjects, mapper);
         }
 
-        private static String toJson(Object value) {
+        private static String toJson(Object value, ObjectMapper mapper) {
             try {
-                return MAPPER.writeValueAsString(value);
+                return mapper.writeValueAsString(value);
             } catch (JsonProcessingException e) {
                 throw new RuntimeException("Failed to serialize emailJson", e);
             }

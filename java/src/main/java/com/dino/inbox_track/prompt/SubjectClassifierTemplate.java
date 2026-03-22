@@ -72,20 +72,19 @@ public class SubjectClassifierTemplate {
             """})
     public static class SubjectClassifierPrompt {
 
-        private static final ObjectMapper MAPPER = new ObjectMapper();
 
         private final String emailSubjectsJson;
 
-        public SubjectClassifierPrompt(List<EmailDTO> emailSubjects) {
+        public SubjectClassifierPrompt(List<EmailDTO> emailSubjects, ObjectMapper objectMapper) {
             List<EmailSubjectData> subjectData = emailSubjects.stream()
                     .map(EmailSubjectData::new)
                     .toList();
-            this.emailSubjectsJson = toJson(subjectData);
+            this.emailSubjectsJson = toJson(subjectData, objectMapper);
         }
 
-        private static String toJson(Object value) {
+        private static String toJson(Object value, ObjectMapper mapper) {
             try {
-                return MAPPER.writeValueAsString(value);
+                return mapper.writeValueAsString(value);
             } catch (JsonProcessingException e) {
                 throw new RuntimeException("Failed to serialize emailSubjects", e);
             }

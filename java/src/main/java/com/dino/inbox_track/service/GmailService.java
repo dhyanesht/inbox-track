@@ -1,6 +1,7 @@
 package com.dino.inbox_track.service;
 
 import com.dino.inbox_track.client.GmailServiceFactory;
+import com.dino.inbox_track.db.Email;
 import com.dino.inbox_track.dto.EmailApplicationClassification;
 import com.dino.inbox_track.dto.EmailApplicationResponse;
 import com.dino.inbox_track.dto.EmailDTO;
@@ -14,10 +15,14 @@ import com.google.api.services.gmail.model.ListMessagesResponse;
 import com.google.api.services.gmail.model.Message;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -37,6 +42,7 @@ public class GmailService {
     private final JobService jobService;
     private final OllamaService ollamaService;
     private final LangChainService langChainService;
+    private final ObjectMapper mapper;
 
 
     public List<String> getLabelNames() throws Exception {
@@ -109,12 +115,12 @@ public class GmailService {
     private List<EmailDTO> fetchEmails(Gmail service, List<String> messageIds) throws IOException {
         List<EmailDTO> results = new ArrayList<>();
         for (String msgId : messageIds) {
-            var message = service.users().messages().get("me", msgId).setFormat("full").execute();
-
+            Message message = service.users().messages().get(USER, msgId).setFormat("full").execute();
+            ZonedDateTime dateTime = Instant.ofEpochMilli(message.getInternalDate()).atZone(ZoneId.of("UTC"));
+            String from = emailParsingService.extractHeader(message, "From");
             String subject = emailParsingService.extractHeader(message, "Subject");
-            String from = emailParsingService.extractHeader(message, "from");
             String body = emailParsingService.extractPlainText(message.getPayload());
-            results.add(EmailDTO.builder().emailId(msgId).from(from).subject(subject).message(body).build());
+            results.add(EmailDTO.builder().emailId(msgId).date(dateTime).from(from).subject(subject).message(body).build());
         }
         return results;
     }
@@ -128,7 +134,6 @@ public class GmailService {
     public List<EmailApplicationClassification> parseClassificationResponse(
             List<String> jsonResponses) {
 
-        ObjectMapper mapper = new ObjectMapper();
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
         return jsonResponses.stream()

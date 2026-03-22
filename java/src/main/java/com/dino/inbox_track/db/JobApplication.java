@@ -55,8 +55,7 @@ public class JobApplication {
 
     @Column(columnDefinition = "TEXT")
     private String notes;
-
-
+    
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 

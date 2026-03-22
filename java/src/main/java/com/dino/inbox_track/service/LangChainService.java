@@ -34,9 +34,9 @@ public class LangChainService {
     private final ObjectMapper objectMapper;
     private final PromptSanitizer promptSanitizer;
 
-    public LangChainService(CustomLLMChatModel chatModel, PromptSanitizer promptSanitizer) {
+    public LangChainService(ObjectMapper objectMapper, CustomLLMChatModel chatModel, PromptSanitizer promptSanitizer) {
         this.chatModel = chatModel;
-        this.objectMapper = new ObjectMapper();
+        this.objectMapper = objectMapper;
         this.tokenCountEstimator = new OpenAiTokenCountEstimator(GPT_5);
         this.promptSanitizer = promptSanitizer;
     }
@@ -84,7 +84,8 @@ public class LangChainService {
     private List<EmailApplicationResponse> processBatch(List<EmailDTO> batch, ObjectMapper objectMapper)
         throws JsonProcessingException {
 
-        SubjectClassifierTemplate.SubjectClassifierPrompt promptTemplate = new SubjectClassifierTemplate.SubjectClassifierPrompt(batch);
+        SubjectClassifierTemplate.SubjectClassifierPrompt promptTemplate = new SubjectClassifierTemplate.SubjectClassifierPrompt(
+            batch, objectMapper);
         Prompt prompt = StructuredPromptProcessor.toPrompt(promptTemplate);
         String promptText = prompt.text();
         promptText = promptSanitizer.sanitize(promptText);
@@ -98,7 +99,8 @@ public class LangChainService {
 
         var message = trimToTokenLimitSmart(emailApp.getMessage(), 5000, tokenCountEstimator);
         emailApp.setMessage(message);
-        MessageClassifierTemplate.MessageClassifierPrompt promptTemplate = new MessageClassifierTemplate.MessageClassifierPrompt(emailApp);
+        MessageClassifierTemplate.MessageClassifierPrompt promptTemplate = new MessageClassifierTemplate.MessageClassifierPrompt(
+            emailApp, objectMapper);
         Prompt prompt = StructuredPromptProcessor.toPrompt(promptTemplate);
         String promptText = prompt.text();
         promptText = promptSanitizer.sanitize(promptText);

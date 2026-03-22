@@ -3,6 +3,8 @@ package com.dino.inbox_track.service;
 import com.dino.inbox_track.db.ApplicationEvent;
 import com.dino.inbox_track.db.ApplicationEventRepository;
 import com.dino.inbox_track.db.ApplicationStatus;
+import com.dino.inbox_track.db.Email;
+import com.dino.inbox_track.db.EmailRepository;
 import com.dino.inbox_track.db.EventType;
 import com.dino.inbox_track.db.JobApplication;
 import com.dino.inbox_track.db.JobApplicationRepository;
@@ -14,7 +16,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +32,7 @@ public class JobService {
 
     private final JobApplicationRepository jobApplicationRepository;
     private final ApplicationEventRepository applicationEventRepository;
+    private final EmailRepository emailRepository;
     // In-memory cache: key = company|position, value = JobApplication
     private final Map<String, JobApplication> jobCache = new ConcurrentHashMap<>();
 
@@ -67,11 +70,6 @@ public class JobService {
         };
     }
 
-    private UUID getCurrentUserId() {
-        // Implement based on your authentication context
-        // e.g., SecurityContextHolder.getContext().getAuthentication()
-        return UUID.randomUUID(); // Placeholder
-    }
 
     @Transactional
     public void saveAllApplicationEvents(List<EmailApplicationClassification> classifications) {
@@ -81,9 +79,10 @@ public class JobService {
             String key = classification.getCompany() + "|" + classification.getPositionTitle();
             JobApplication jobApplication = jobCache.computeIfAbsent(key, j -> {
                 JobApplication newJob = JobApplication.builder()
-                    .companyName(classification.getCompany())
-                    .position(classification.getPositionTitle())
+                    .companyName(classification.getCompany() != null ? classification.getCompany() : "null")
+                    .position(classification.getPositionTitle() != null ? classification.getPositionTitle() : "null")
                     .status(EventType.fromString(classification.getApplicationStage()).toApplicationStatus())
+                    .notes(classification.getNotes())
                     .applicationDate(OffsetDateTime.now())
                     .lastUpdated(OffsetDateTime.now())
                     .createdAt(OffsetDateTime.now())
@@ -91,10 +90,12 @@ public class JobService {
                 // Save to DB
                 return jobApplicationRepository.save(newJob);
             });
+            Optional<Email> emailOptional = emailRepository.findByMessageId(classification.getEmailId());
             events.add(ApplicationEvent.builder()
                 .application(jobApplication)
                 .eventType(EventType.fromString(classification.getApplicationStage()))
                 .eventDate(OffsetDateTime.now())
+                .email(emailOptional.orElseThrow())
                 .build());
         }
         applicationEventRepository.saveAll(events);

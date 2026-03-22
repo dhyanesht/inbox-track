@@ -27,28 +27,26 @@ public class EmailService {
         Email email = Email.builder()
                 .messageId(dto.getEmailId())
                 .subject(dto.getSubject())
-                .date(dto.getDate())
+            .date(dto.getDate().toInstant())
                 .from(dto.getFrom())
                 .body(dto.getMessage().substring(0, 200))
-                .application(null) // Link later via business logic
                 .build();
         emailRepository.save(email);
     }
 
     @Transactional
-  public void saveAllEmails(List<EmailDTO> jobApplications) {
+    public List<Email> saveAllEmails(List<EmailDTO> jobApplications) {
     List<Email> emails = new ArrayList<>();
     for (EmailDTO dto : jobApplications) {
       emails.add(
           Email.builder()
               .messageId(dto.getEmailId())
               .subject(dto.getSubject())
-              .date(dto.getDate())
+              .date(dto.getDate().toInstant())
               .from(dto.getFrom())
               .body(dto.getMessage().substring(0, 200))
-              .application(null) // Link later via business logic
               .build());
     }
-    emailRepository.saveAll(emails);
+      return emailRepository.saveAll(emails);
   }
 }

@@ -1,7 +1,8 @@
 package com.dino.inbox_track.dto;
 
 import com.dino.inbox_track.db.Email;
-import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,15 +18,15 @@ public class EmailDTO {
 
     String emailId;
     String from;
-    LocalDate date;
+    ZonedDateTime date;
     String subject;
     String message;
 
     public static EmailDTO toEmailDTO(Email email) {
         return builder()
-            .emailId(email.getFrom())
+            .emailId(email.getMessageId())
             .from(email.getFrom())
-            .date(email.getDate())
+            .date(email.getDate().atZone(ZoneId.systemDefault()))
             .subject(email.getSubject())
             .message(email.getBody())
             .build();

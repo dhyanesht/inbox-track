@@ -1,6 +1,7 @@
 package com.dino.inbox_track.db;
 
 public enum EventType {
+    RECRUITER_REACHOUT,
     APPLIED,
     EMAIL_RECEIVED,
     INTERVIEW_SCHEDULED,
@@ -24,6 +25,9 @@ public enum EventType {
         switch (stage.trim().toLowerCase()) {
             case "applied", "application submitted":
                 return APPLIED;
+
+            case "recruiter reachout":
+                return RECRUITER_REACHOUT;
 
             case "email received":
                 return EMAIL_RECEIVED;
@@ -63,6 +67,7 @@ public enum EventType {
      */
     public ApplicationStatus toApplicationStatus() {
         return switch (this) {
+            case RECRUITER_REACHOUT -> ApplicationStatus.received;
             case APPLIED -> ApplicationStatus.applied;
             case EMAIL_RECEIVED -> ApplicationStatus.applied;       // Still in applied stage
             case INTERVIEW_SCHEDULED -> ApplicationStatus.interview;
