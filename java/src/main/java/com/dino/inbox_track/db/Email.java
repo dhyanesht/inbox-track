@@ -33,5 +33,5 @@ public class Email {
     private String subject;
     private String body;
     @OneToOne
-    private JobApplication application;
+    private ApplicationEvent application;
 }

@@ -20,6 +20,9 @@ public class EmailService {
         this.emailRepository = emailRepository;
     }
 
+  public List<EmailDTO> getEmails() {
+    return emailRepository.findAll().stream().map(EmailDTO::toEmailDTO).toList();
+  }
     public void saveEmail(EmailDTO dto) {
         Email email = Email.builder()
                 .messageId(dto.getEmailId())

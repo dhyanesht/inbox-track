@@ -12,12 +12,14 @@ import com.dino.inbox_track.dto.EmailApplicationClassification;
 import jakarta.transaction.Transactional;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -28,6 +30,8 @@ public class JobService {
 
     private final JobApplicationRepository jobApplicationRepository;
     private final ApplicationEventRepository applicationEventRepository;
+    // In-memory cache: key = company|position, value = JobApplication
+    private final Map<String, JobApplication> jobCache = new ConcurrentHashMap<>();
 
 
 
@@ -36,50 +40,21 @@ public class JobService {
         return jobApplicationRepository.findAll();
     }
 
-    @Transactional
-    public ApplicationEvent saveApplicationEvent(EmailApplicationClassification dto) {
+    /**
+     * Refresh the in-memory cache with all jobs from last 6 months
+     */
+    @Scheduled(fixedDelay = 60_000) // every 60 seconds or as needed
+    public void refreshCache() {
+        OffsetDateTime sixMonthsAgo = OffsetDateTime.now().minusMonths(6);
+        List<JobApplication> recentJobs = jobApplicationRepository.findByApplicationDateAfter(sixMonthsAgo);
 
-        ApplicationEvent event = ApplicationEvent.builder()
-            .eventType(EventType.email_received)
-            .title(dto.getSubject())
-            .description("Email classified as job application: " + dto.getCompany() + " - " + dto.getPositionTitle())
-            .eventDate(OffsetDateTime.now())
-            .createdAt(OffsetDateTime.now())
-            .build();
-        applicationEventRepository.save(event);
-        return event;
-    }
-
-    @Transactional
-    public JobApplication saveJob(EmailApplicationClassification dto) {
-        if (!dto.getIsJobApplication()) {
-            return null; // Skip non-job emails
-        }
-
-        JobApplication job = JobApplication.builder()
-                .userId(getCurrentUserId())
-                .companyName(dto.getCompany())
-                .position(dto.getPositionTitle())
-                .status(mapStatus(dto.getApplicationStatus()))
-                .applicationDate(OffsetDateTime.now())
-                .lastUpdated(OffsetDateTime.now())
-                .createdAt(OffsetDateTime.now())
-                .events(new ArrayList<>())
-                .build();
-
-        // Create email classification event
-        ApplicationEvent event = ApplicationEvent.builder()
-                .application(job)
-                .eventType(EventType.email_received)
-                .title(dto.getSubject())
-                .description("Email classified as job application: " + dto.getCompany() + " - " + dto.getPositionTitle())
-                .eventDate(OffsetDateTime.now())
-                .createdAt(OffsetDateTime.now())
-                .build();
-
-        job.getEvents().add(event);
-
-        return jobApplicationRepository.save(job);
+        Map<String, JobApplication> updatedCache = recentJobs.stream()
+            .collect(Collectors.toMap(
+                j -> j.getCompanyName() + "|" + j.getPosition(),
+                j -> j
+            ));
+        jobCache.clear();
+        jobCache.putAll(updatedCache);
     }
 
     private ApplicationStatus mapStatus(String statusStr) {
@@ -101,16 +76,25 @@ public class JobService {
     @Transactional
     public void saveAllApplicationEvents(List<EmailApplicationClassification> classifications) {
         List<ApplicationEvent> events = new ArrayList<>();
-        Map<String, String> map = new HashMap<>();
 
         for (EmailApplicationClassification classification : classifications) {
+            String key = classification.getCompany() + "|" + classification.getPositionTitle();
+            JobApplication jobApplication = jobCache.computeIfAbsent(key, j -> {
+                JobApplication newJob = JobApplication.builder()
+                    .companyName(classification.getCompany())
+                    .position(classification.getPositionTitle())
+                    .status(EventType.fromString(classification.getApplicationStage()).toApplicationStatus())
+                    .applicationDate(OffsetDateTime.now())
+                    .lastUpdated(OffsetDateTime.now())
+                    .createdAt(OffsetDateTime.now())
+                    .build();
+                // Save to DB
+                return jobApplicationRepository.save(newJob);
+            });
             events.add(ApplicationEvent.builder()
-                .eventType(EventType.email_received)
-                .title(classification.getSubject())
-                .description("Email classified as job application: " + classification.getCompany() + " - "
-                    + classification.getPositionTitle())
+                .application(jobApplication)
+                .eventType(EventType.fromString(classification.getApplicationStage()))
                 .eventDate(OffsetDateTime.now())
-                .createdAt(OffsetDateTime.now())
                 .build());
         }
         applicationEventRepository.saveAll(events);

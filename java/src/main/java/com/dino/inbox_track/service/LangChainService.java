@@ -87,9 +87,7 @@ public class LangChainService {
         SubjectClassifierTemplate.SubjectClassifierPrompt promptTemplate = new SubjectClassifierTemplate.SubjectClassifierPrompt(batch);
         Prompt prompt = StructuredPromptProcessor.toPrompt(promptTemplate);
         String promptText = prompt.text();
-        log.info(" prompt length before sanitizing {}", promptText.length());
         promptText = promptSanitizer.sanitize(promptText);
-        log.info(" prompt length after sanitizing {}", promptText.length());
         String response = chatModel.chat(promptText);
         return objectMapper.readValue(response, new TypeReference<List<EmailApplicationResponse>>() {
         });
@@ -103,9 +101,7 @@ public class LangChainService {
         MessageClassifierTemplate.MessageClassifierPrompt promptTemplate = new MessageClassifierTemplate.MessageClassifierPrompt(emailApp);
         Prompt prompt = StructuredPromptProcessor.toPrompt(promptTemplate);
         String promptText = prompt.text();
-        log.info(" prompt length before sanitizing {}", promptText.length());
         promptText = promptSanitizer.sanitize(promptText);
-        log.info(" prompt length after sanitizing {}", promptText.length());
 
         // Optionally log token count per batch
         ChatRequest chatRequest = ChatRequest.builder().messages(new ChatMessage[]{UserMessage.from(promptText)}).build();

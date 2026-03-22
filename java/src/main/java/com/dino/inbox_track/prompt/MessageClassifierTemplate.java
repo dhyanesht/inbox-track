@@ -14,7 +14,7 @@ public class MessageClassifierTemplate {
               "emailId", "from", "to", "subject", "message".
             
             Output: A single JSON object that:
-              - Includes all original fields: "emailId", "from", "to", "subject", "message".
+              - Includes all original fields: "emailId", "from", "to", "subject".
               - Add:
                 "IsJobApplication": true if clearly about a job application or opportunity, false otherwise.
               - If IsJobApplication is true, also add:
@@ -58,7 +58,6 @@ public class MessageClassifierTemplate {
               "from": "hiring@acme.com",
               "to": "you@example.com",
               "subject": "Interview invitation for Backend Engineer",
-              "message": "Hi, you've been invited to interview for Backend Engineer at Acme Corp in New York. Deadline: 2026-03-10.",
               "isJobApplication": true,
               "company": "Acme Corp",
               "country": "USA",

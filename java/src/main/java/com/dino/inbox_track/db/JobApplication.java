@@ -9,13 +9,12 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
@@ -29,9 +28,6 @@ public class JobApplication {
     @Id
     @GeneratedValue
     private UUID id;
-
-    @Column(name = "user_id", nullable = false)
-    private UUID userId;
 
     @Column(name = "company_name", nullable = false)
     private String companyName;
@@ -60,11 +56,6 @@ public class JobApplication {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
-    @Column(name = "email_thread_id")
-    private String emailThreadId;
-
-    @Enumerated(EnumType.STRING)
-    private Priority priority = Priority.medium;
 
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;

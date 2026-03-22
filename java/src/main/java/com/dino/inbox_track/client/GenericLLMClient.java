@@ -3,6 +3,7 @@ package com.dino.inbox_track.client;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.model.openai.internal.chat.ChatCompletionChoice;
 import dev.langchain4j.model.openai.internal.chat.ChatCompletionResponse;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -49,7 +50,7 @@ public class GenericLLMClient {
           .body(requestBody)
           .retrieve()
           .body(String.class);
-      Thread.sleep(60000); // rate limitting the API.
+      Thread.sleep(Duration.ofSeconds(10).toMillis()); // rate limiting the API.
       completion = objectMapper.readValue(responseJsonRc, ChatCompletionResponse.class);
     } catch (RestClientException e) {
       e.printStackTrace();

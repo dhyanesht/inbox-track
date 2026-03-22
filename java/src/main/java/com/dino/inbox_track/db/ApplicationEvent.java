@@ -41,17 +41,8 @@ public class ApplicationEvent {
     @Column(name = "event_type", nullable = false)
     private EventType eventType;
 
-    @Column(nullable = false)
-    private String title;
-
-    @Column(columnDefinition = "TEXT")
-    private String description;
-
     @Column(name = "event_date", nullable = false)
     private OffsetDateTime eventDate;
-
-    @Column(name = "created_at", nullable = false)
-    private OffsetDateTime createdAt;
 
     // getters & setters
 }

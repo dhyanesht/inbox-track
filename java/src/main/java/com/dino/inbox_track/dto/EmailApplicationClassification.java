@@ -4,22 +4,32 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.ToString;
 
 @Data
-@ToString
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class EmailApplicationClassification {
 
-    String emailId;
-    String subject;
-    Boolean isJobApplication;
-    String company;
-    String positionTitle;
-    String applicationStage;
-    String applicationStatus;
+    private String emailId;
+    private String from;
+    private String to;
+    private String subject;
+    private Boolean isJobApplication;
 
-
+    private String company;
+    private String country;
+    private String positionTitle;
+    private String positionLocation;
+    private String salary;
+    private String applicationStage;
+    private String jobId;
+    private String applicationStatus;
+    private String nextStep;
+    private String applicationDate;
+    private String deadline;
+    private String remotePolicy;
+    private String employmentType;
+    private String experienceLevel;
+    private String hiringManager;
 }

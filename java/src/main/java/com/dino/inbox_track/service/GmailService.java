@@ -18,6 +18,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -60,8 +61,8 @@ public class GmailService {
             List<EmailDTO> jobApplications = filterJobApplications(emails);
             // Batch DB write
             emailService.saveAllEmails(jobApplications);
-            List<EmailApplicationClassification> classifications =
-                classifyApplications(jobApplications);
+            List<EmailApplicationClassification> classifications = classifyApplications(jobApplications);
+            log.info(classifications.toString());
             jobService.saveAllApplicationEvents(classifications);
             allClassifications.addAll(classifications);
 
@@ -90,12 +91,12 @@ public class GmailService {
     }
 
 
-    private List<EmailDTO> filterJobApplications(List<EmailDTO> emails) throws JsonProcessingException, InterruptedException {
+    public List<EmailDTO> filterJobApplications(List<EmailDTO> emails) throws JsonProcessingException, InterruptedException {
         // Classify email using LLM
         List<EmailApplicationResponse> jobResponses = langChainService.filterJobApplicationSubjects(emails);
 
         Set<String> jobEmailIds = jobResponses.stream()
-            .filter(EmailApplicationResponse::getIsJobApplication)
+            .filter(resp -> Boolean.TRUE.equals(resp.getIsJobApplication()))
             .map(EmailApplicationResponse::getEmailId)
             .collect(Collectors.toSet());
 
@@ -142,25 +143,15 @@ public class GmailService {
                             cleanJson = mapper.writeValueAsString(node.get(0));
                         }
 
-                        return mapper.readValue(cleanJson, EmailApplicationClassification.class);
+                        return Optional.of(mapper.readValue(cleanJson, EmailApplicationClassification.class));
                     } catch (Exception e) {
                         log.warn("Failed to parse JSON: {} - {}", json, e.getMessage());
-                        return EmailApplicationClassification.builder()
-                                .emailId(extractEmailIdFromJson(json))  // Fallback
-                                .isJobApplication(false)
-                                .build();
+                        return Optional.<EmailApplicationClassification>empty();
                     }
                 })
+            // unwrap only present values
+            .flatMap(Optional::stream)
             .toList();
-    }
-
-    private String extractEmailIdFromJson(String json) {
-        try {
-            JsonNode node = new ObjectMapper().readTree(json);
-            return node.at("/emailId").asText(node.at("/email_id").asText("unknown"));
-        } catch (Exception e) {
-            return "unknown";
-        }
     }
 
     private String cleanJsonResponse(String response) {
@@ -179,7 +170,7 @@ public class GmailService {
         List<String> allIds = new ArrayList<>();
         String nextPageToken = null;
 
-        // ⭐ Docs format: "in:inbox after:YYYY/MM/DD before:YYYY/MM/DD"
+        // Docs format: "in:inbox after:YYYY/MM/DD before:YYYY/MM/DD"
         String query = String.format("in:inbox after:%s before:%s", afterDate, beforeDate);
 
         do {

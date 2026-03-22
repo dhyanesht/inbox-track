@@ -19,7 +19,7 @@ public class PromptSanitizer {
     public String sanitize(String input) {
         return sensitiveValues.stream()
             .reduce(input, (str, word) ->
-                    str.replaceAll("(?i)" + Pattern.quote(word), ""),
+                    str.replaceAll("(?i)" + Pattern.quote(word), "[REDACTED]"),
                 (a, b) -> a);
     }
 }

@@ -6,8 +6,6 @@ import java.util.UUID;
 
 public record ApplicationEventDto(
     UUID id,
-    String title,
-    String description,
     OffsetDateTime eventDate,
     EventType eventType
 ) {}
