@@ -5,11 +5,11 @@ import static dev.langchain4j.model.openai.OpenAiChatModelName.GPT_5;
 import com.dino.inbox_track.client.CustomLLMChatModel;
 import com.dino.inbox_track.dto.EmailApplicationResponse;
 import com.dino.inbox_track.dto.EmailDTO;
+import com.dino.inbox_track.prompt.LLMMessageParser;
 import com.dino.inbox_track.prompt.MessageClassifierTemplate;
 import com.dino.inbox_track.prompt.PromptSanitizer;
 import com.dino.inbox_track.prompt.SubjectClassifierTemplate;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.UserMessage;
@@ -33,10 +33,13 @@ public class LangChainService {
     private final ChatModel chatModel;
     private final ObjectMapper objectMapper;
     private final PromptSanitizer promptSanitizer;
+    private final LLMMessageParser llmMessageParser;
 
-    public LangChainService(ObjectMapper objectMapper, CustomLLMChatModel chatModel, PromptSanitizer promptSanitizer) {
+    public LangChainService(ObjectMapper objectMapper, CustomLLMChatModel chatModel, PromptSanitizer promptSanitizer,
+        LLMMessageParser llmMessageParser) {
         this.chatModel = chatModel;
         this.objectMapper = objectMapper;
+        this.llmMessageParser = llmMessageParser;
         this.tokenCountEstimator = new OpenAiTokenCountEstimator(GPT_5);
         this.promptSanitizer = promptSanitizer;
     }
@@ -81,8 +84,7 @@ public class LangChainService {
         return results;
     }
 
-    private List<EmailApplicationResponse> processBatch(List<EmailDTO> batch, ObjectMapper objectMapper)
-        throws JsonProcessingException {
+    private List<EmailApplicationResponse> processBatch(List<EmailDTO> batch, ObjectMapper objectMapper) {
 
         SubjectClassifierTemplate.SubjectClassifierPrompt promptTemplate = new SubjectClassifierTemplate.SubjectClassifierPrompt(
             batch, objectMapper);
@@ -90,12 +92,12 @@ public class LangChainService {
         String promptText = prompt.text();
         promptText = promptSanitizer.sanitize(promptText);
         String response = chatModel.chat(promptText);
-        return objectMapper.readValue(response, new TypeReference<List<EmailApplicationResponse>>() {
-        });
+        return llmMessageParser.parseEmailApplicationResponse(response);
+
     }
 
 
-    public String processEmailApplication(EmailDTO emailApp) throws InterruptedException {
+    public String processEmailApplication(EmailDTO emailApp) {
 
         var message = trimToTokenLimitSmart(emailApp.getMessage(), 5000, tokenCountEstimator);
         emailApp.setMessage(message);

@@ -1,13 +1,11 @@
 package com.dino.inbox_track.service;
 
 import com.dino.inbox_track.client.GmailServiceFactory;
-import com.dino.inbox_track.db.Email;
 import com.dino.inbox_track.dto.EmailApplicationClassification;
 import com.dino.inbox_track.dto.EmailApplicationResponse;
 import com.dino.inbox_track.dto.EmailDTO;
+import com.dino.inbox_track.prompt.LLMMessageParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.api.services.gmail.Gmail;
 import com.google.api.services.gmail.model.Label;
@@ -22,8 +20,6 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +37,7 @@ public class GmailService {
     private final EmailService emailService;
     private final JobService jobService;
     private final OllamaService ollamaService;
+    private final LLMMessageParser llmMessageParser;
     private final LangChainService langChainService;
     private final ObjectMapper mapper;
 
@@ -82,17 +79,10 @@ public class GmailService {
 
     private List<EmailApplicationClassification> classifyApplications(List<EmailDTO> jobApplications) {
         List<String> responses = jobApplications.stream()
-            .map(email -> {
-                try {
-                    return langChainService.processEmailApplication(email);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException("Interrupted while processing email", e);
-                }
-            })
+            .map(langChainService::processEmailApplication)
             .toList();
 
-        return parseClassificationResponse(responses);
+        return llmMessageParser.parseClassificationResponse(responses);
 
     }
 
@@ -131,42 +121,7 @@ public class GmailService {
     }
 
 
-    public List<EmailApplicationClassification> parseClassificationResponse(
-            List<String> jsonResponses) {
 
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
-        return jsonResponses.stream()
-                .map(json -> {
-                    try {
-                        // Clean common LLM formatting
-                        String cleanJson = cleanJsonResponse(json);
-                        JsonNode node = mapper.readTree(cleanJson);
-
-                        // Handle both single object and array formats
-                        if (node.isArray() && node.size() > 0) {
-                            cleanJson = mapper.writeValueAsString(node.get(0));
-                        }
-
-                        return Optional.of(mapper.readValue(cleanJson, EmailApplicationClassification.class));
-                    } catch (Exception e) {
-                        log.warn("Failed to parse JSON: {} - {}", json, e.getMessage());
-                        return Optional.<EmailApplicationClassification>empty();
-                    }
-                })
-            // unwrap only present values
-            .flatMap(Optional::stream)
-            .toList();
-    }
-
-    private String cleanJsonResponse(String response) {
-        if (response == null) return "{}";
-
-        // Remove common LLM markdown wrappers
-        return response.replaceAll("(?s)^\\s*```(?:json)?\\s*", "")
-                .replaceAll("\\s*```\\s*$", "")
-                .trim();
-    }
 
 
     private List<String> getMessageIdsDateRange(Gmail service, String user, String afterDate, String beforeDate,
