@@ -8,14 +8,18 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.hc.client5.http.classic.HttpClient;
+import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.core5.util.Timeout;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StopWatch;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -33,20 +37,33 @@ public class GenericLLMClient {
     this.objectMapper = objectMapper;
     this.modelName = modelName;
 
-    // 1. Define the Timeout configuration (5 seconds to connect, 60 seconds to read)
-    RequestConfig config = RequestConfig.custom()
+    // Define the Timeout configuration (5 seconds to connect, 60 seconds to read)
+    // 1. Connection config
+    ConnectionConfig connectionConfig = ConnectionConfig.custom()
         .setConnectTimeout(Timeout.ofSeconds(5))
-        .setConnectionRequestTimeout(Timeout.ofSeconds(5))
-        .setResponseTimeout(Timeout.ofSeconds(240)) // This is the Read Timeout
         .build();
 
-    // 2. Build the Apache HttpClient
-    HttpClient httpClient = HttpClients.custom()
-        .setDefaultRequestConfig(config)
+    // 2. Connection manager
+    PoolingHttpClientConnectionManager connectionManager =
+        PoolingHttpClientConnectionManagerBuilder.create()
+            .setDefaultConnectionConfig(connectionConfig)
+            .build();
+
+    // 3. Request config
+    RequestConfig requestConfig = RequestConfig.custom()
+        .setConnectionRequestTimeout(Timeout.ofSeconds(5))
+        .setResponseTimeout(Timeout.ofSeconds(240))
+        .build();
+
+    // 4. HttpClient
+    CloseableHttpClient httpClient = HttpClients.custom()
+        .setConnectionManager(connectionManager)
+        .setDefaultRequestConfig(requestConfig)
         .build();
 
     // 3. Create the Spring Factory using the Apache client
     HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
+    factory.setReadTimeout(Duration.ofSeconds(240));
 
     this.restClient = RestClient.builder()
         .baseUrl(baseUrl)
@@ -69,6 +86,9 @@ public class GenericLLMClient {
         "stream", false
     );
     ChatCompletionResponse completion = ChatCompletionResponse.builder().build();
+    StopWatch watch = new StopWatch();
+
+    watch.start();
     try {
       String responseJsonRc = restClient.post()
           .uri("/chat/completions")
@@ -78,11 +98,13 @@ public class GenericLLMClient {
       Thread.sleep(Duration.ofSeconds(20).toMillis()); // rate limiting the API.
       completion = objectMapper.readValue(responseJsonRc, ChatCompletionResponse.class);
     } catch (ResourceAccessException e) {
-      log.error("ResourceAccessException during LLM Call");
-      log.error(e.getMessage());
+      log.error("ResourceAccessException during LLM Call ", e);
       completion = ChatCompletionResponse.builder().build();
     } catch (RestClientException e) {
-      e.printStackTrace();
+      log.error("RestClientException during LLM Call ", e);
+    } finally {
+      watch.stop();
+      log.info("LLM time: {}", watch.getTotalTimeSeconds());
     }
 
     // Deserialize JSON to LangChain4J ChatCompletionResponse
