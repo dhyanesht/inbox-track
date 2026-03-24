@@ -4,7 +4,7 @@ import com.dino.inbox_track.db.EventType;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-public record ApplicationEventDto(
+public record ApplicationEventDTO(
     UUID id,
     OffsetDateTime eventDate,
     EventType eventType

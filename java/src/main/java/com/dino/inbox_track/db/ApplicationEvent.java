@@ -1,5 +1,6 @@
 package com.dino.inbox_track.db;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -32,6 +33,7 @@ public class ApplicationEvent {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "application_id")
+    @JsonBackReference
     private JobApplication application;
 
     @Enumerated(EnumType.STRING)

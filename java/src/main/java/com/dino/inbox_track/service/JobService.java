@@ -8,9 +8,11 @@ import com.dino.inbox_track.db.EmailRepository;
 import com.dino.inbox_track.db.EventType;
 import com.dino.inbox_track.db.JobApplication;
 import com.dino.inbox_track.db.JobApplicationRepository;
-import com.dino.inbox_track.dto.ApplicationEventDto;
+import com.dino.inbox_track.dto.ApplicationEventDTO;
 import com.dino.inbox_track.dto.ApplicationEventMapper;
 import com.dino.inbox_track.dto.EmailApplicationClassification;
+import com.dino.inbox_track.dto.JobApplicationDTO;
+import com.dino.inbox_track.dto.JobApplicationMapper;
 import jakarta.transaction.Transactional;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -35,12 +37,15 @@ public class JobService {
     private final EmailRepository emailRepository;
     // In-memory cache: key = company|position, value = JobApplication
     private final Map<String, JobApplication> jobCache = new ConcurrentHashMap<>();
+    private final JobApplicationMapper jobApplicationMapper;
 
 
+    public List<JobApplicationDTO> listJobs() {
 
-    public List<JobApplication> listJobs() {
-
-        return jobApplicationRepository.findAll();
+        return jobApplicationRepository.findAllWithEvents()
+            .stream()
+            .map(jobApplicationMapper::toDto)
+            .toList();
     }
 
     /**
@@ -101,8 +106,7 @@ public class JobService {
         applicationEventRepository.saveAll(events);
     }
 
-    public List<ApplicationEventDto> listApplications() {
-        System.out.println(applicationEventRepository.findAll());
+    public List<ApplicationEventDTO> listApplications() {
         return applicationEventRepository.findAll().stream().map(ApplicationEventMapper::toDto).toList();
     }
 }

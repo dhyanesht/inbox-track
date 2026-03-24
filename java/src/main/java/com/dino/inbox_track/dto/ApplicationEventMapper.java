@@ -4,8 +4,12 @@ import com.dino.inbox_track.db.ApplicationEvent;
 
 public class ApplicationEventMapper {
 
-  public static ApplicationEventDto toDto(ApplicationEvent event) {
-    return new ApplicationEventDto(
+  private ApplicationEventMapper() {
+
+  }
+
+  public static ApplicationEventDTO toDto(ApplicationEvent event) {
+    return new ApplicationEventDTO(
         event.getId(),
         event.getEventDate(),
         event.getEventType()

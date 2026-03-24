@@ -1,5 +1,6 @@
 package com.dino.inbox_track.db;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -60,6 +61,7 @@ public class JobApplication {
     private OffsetDateTime createdAt;
 
     @OneToMany(mappedBy = "application", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference
     private List<ApplicationEvent> events;
 
 }

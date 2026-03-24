@@ -1,8 +1,8 @@
 package com.dino.inbox_track.controller;
 
-import com.dino.inbox_track.db.JobApplication;
-import com.dino.inbox_track.dto.ApplicationEventDto;
+import com.dino.inbox_track.dto.ApplicationEventDTO;
 import com.dino.inbox_track.dto.EmailDTO;
+import com.dino.inbox_track.dto.JobApplicationDTO;
 import com.dino.inbox_track.service.EmailService;
 import com.dino.inbox_track.service.JobService;
 import java.util.List;
@@ -25,12 +25,12 @@ public class JobController {
     }
 
     @GetMapping("/")
-    public List<JobApplication> listJobs() {
+    public List<JobApplicationDTO> listJobs() {
         return jobService.listJobs();
     }
 
     @GetMapping("/applications")
-    public List<ApplicationEventDto> listApplications() {
+    public List<ApplicationEventDTO> listApplications() {
         return jobService.listApplications();
     }
 
