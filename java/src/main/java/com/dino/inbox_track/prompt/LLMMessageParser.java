@@ -23,19 +23,25 @@ public class LLMMessageParser {
 
   public List<EmailApplicationResponse> parseEmailApplicationResponse(String json) {
     try {
-      // Clean common LLM formatting
+      // Clean common LLM formatting (e.g., markdown code blocks)
       String cleanJson = cleanJsonResponse(json);
       JsonNode node = mapper.readTree(cleanJson);
 
-      // Handle both single object and array formats
-      if (node.isArray() && node.size() > 0) {
-        cleanJson = mapper.writeValueAsString(node.get(0));
+      // If the LLM returned a single object instead of an array, wrap it in a list
+      if (node.isObject()) {
+        EmailApplicationResponse singleResponse = mapper.treeToValue(node, EmailApplicationResponse.class);
+        return List.of(singleResponse);
       }
 
-      return mapper.readValue(cleanJson, new TypeReference<List<EmailApplicationResponse>>() {
-      });
+      // If it is an array, parse it directly as a List
+      if (node.isArray()) {
+        return mapper.readValue(cleanJson, new TypeReference<List<EmailApplicationResponse>>() {
+        });
+      }
+
+      return List.of();
     } catch (Exception e) {
-      log.warn("Failed to parse JSON: {} - {}", json, e.getMessage());
+      log.warn("Failed to parse EmailApplicationResponse JSON: {} - {}", json, e.getMessage());
       return List.of();
     }
   }
@@ -57,7 +63,7 @@ public class LLMMessageParser {
 
             return Optional.of(mapper.readValue(cleanJson, EmailApplicationClassification.class));
           } catch (Exception e) {
-            log.warn("Failed to parse JSON: {} - {}", json, e.getMessage());
+            log.warn("Failed to parse EmailApplicationClassification JSON: {} - {}", json, e.getMessage());
             return Optional.<EmailApplicationClassification>empty();
           }
         })

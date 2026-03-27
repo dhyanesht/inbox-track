@@ -54,8 +54,12 @@ public class GmailService {
 
         LocalDate endDate = LocalDate.now();  // 2026/02/14
         LocalDate startDate = endDate.minusDays(daysBack);  // 2026/02/09
-
         List<String> messageIds = fetchMessageIds(service, startDate, endDate);
+        // TODO: this is tempeorary. Refactor the logic.
+        Set<String> processedEmails = emailService.getEmails().stream().map(EmailDTO::getEmailId).collect(Collectors.toSet());
+        messageIds = messageIds.stream().filter(id -> !processedEmails.contains(id)).toList();
+        log.info("Filtered {}", messageIds.size());
+
         int batchSize = 10;
         List<EmailApplicationClassification> allClassifications = new ArrayList<>();
         for (int i = 0; i < messageIds.size(); i += batchSize) {
