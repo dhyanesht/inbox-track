@@ -3,6 +3,7 @@ package com.dino.inbox_track.service;
 import static dev.langchain4j.model.openai.OpenAiChatModelName.GPT_5;
 
 import com.dino.inbox_track.client.CustomLLMChatModel;
+import com.dino.inbox_track.dto.EmailApplicationClassification;
 import com.dino.inbox_track.dto.EmailApplicationResponse;
 import com.dino.inbox_track.dto.EmailDTO;
 import com.dino.inbox_track.prompt.LLMMessageParser;
@@ -11,7 +12,6 @@ import com.dino.inbox_track.prompt.PromptSanitizer;
 import com.dino.inbox_track.prompt.SubjectClassifierTemplate;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.TokenCountEstimator;
 import dev.langchain4j.model.chat.ChatModel;
@@ -21,13 +21,14 @@ import dev.langchain4j.model.input.Prompt;
 import dev.langchain4j.model.input.structured.StructuredPromptProcessor;
 import dev.langchain4j.model.openai.OpenAiTokenCountEstimator;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
-public class LangChainService {
+public class LangChainService implements EmailClassifier {
 
     private final OpenAiTokenCountEstimator tokenCountEstimator;
     private final ChatModel chatModel;
@@ -99,7 +100,7 @@ public class LangChainService {
 
     public String processEmailApplication(EmailDTO emailApp) {
 
-        var message = trimToTokenLimitSmart(emailApp.getMessage(), 5000, tokenCountEstimator);
+        String message = trimToTokenLimitSmart(emailApp.getMessage(), 5000, tokenCountEstimator);
         emailApp.setMessage(message);
         MessageClassifierTemplate.MessageClassifierPrompt promptTemplate = new MessageClassifierTemplate.MessageClassifierPrompt(
             emailApp, objectMapper);
@@ -108,7 +109,7 @@ public class LangChainService {
         promptText = promptSanitizer.sanitize(promptText);
 
         // Optionally log token count per batch
-        ChatRequest chatRequest = ChatRequest.builder().messages(new ChatMessage[]{UserMessage.from(promptText)}).build();
+        ChatRequest chatRequest = ChatRequest.builder().messages(UserMessage.from(promptText)).build();
         ChatResponse chatResponse = chatModel.chat(chatRequest);
         return chatResponse.aiMessage().text();
 
@@ -158,4 +159,25 @@ public class LangChainService {
     }
 
 
+    @Override
+    public List<EmailApplicationClassification> classifyApplications(List<EmailDTO> jobApplications) {
+        List<EmailApplicationClassification> response = new ArrayList<>();
+        for (EmailDTO emailApp : jobApplications) {
+            var message = trimToTokenLimitSmart(emailApp.getMessage(), 5000, tokenCountEstimator);
+            emailApp.setMessage(message);
+            MessageClassifierTemplate.MessageClassifierPrompt promptTemplate = new MessageClassifierTemplate.MessageClassifierPrompt(
+                emailApp, objectMapper);
+            Prompt prompt = StructuredPromptProcessor.toPrompt(promptTemplate);
+            String promptText = prompt.text();
+            promptText = promptSanitizer.sanitize(promptText);
+
+            // Optionally log token count per batch
+            ChatRequest chatRequest = ChatRequest.builder().messages(UserMessage.from(promptText)).build();
+            ChatResponse chatResponse = chatModel.chat(chatRequest);
+            response.addAll(
+                llmMessageParser.parseClassificationResponse(Collections.singletonList(chatResponse.aiMessage().text())).stream()
+                    .toList());
+        }
+        return response;
+    }
 }

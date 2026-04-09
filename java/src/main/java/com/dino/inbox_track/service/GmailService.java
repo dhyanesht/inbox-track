@@ -4,15 +4,16 @@ import com.dino.inbox_track.client.GmailServiceFactory;
 import com.dino.inbox_track.dto.EmailApplicationClassification;
 import com.dino.inbox_track.dto.EmailApplicationResponse;
 import com.dino.inbox_track.dto.EmailDTO;
+import com.dino.inbox_track.exception.EmailFetchException;
 import com.dino.inbox_track.prompt.LLMMessageParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.api.services.gmail.Gmail;
 import com.google.api.services.gmail.model.Label;
+import com.google.api.services.gmail.model.ListLabelsResponse;
 import com.google.api.services.gmail.model.ListMessagesResponse;
 import com.google.api.services.gmail.model.Message;
 import java.io.IOException;
-import java.security.GeneralSecurityException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -29,10 +30,11 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class GmailService {
+public class GmailService implements EmailFetcher {
 
     private static final String USER = "me";
     private final GmailServiceFactory gmailServiceFactory;
+    private final Gmail gmail;
     private final EmailParsingService emailParsingService;
     private final EmailService emailService;
     private final JobService jobService;
@@ -40,31 +42,36 @@ public class GmailService {
     private final LLMMessageParser llmMessageParser;
     private final LangChainService langChainService;
     private final ObjectMapper mapper;
+    private final CheckpointService checkpointService;
 
 
-    public List<String> getLabelNames() throws Exception {
-        var response = gmailService().users().labels().list("me").execute();
+    public List<String> getLabelNames() {
+        ListLabelsResponse response = null;
+        try {
+            response = gmail.users().labels().list("me").execute();
+        } catch (IOException e) {
+            throw new EmailFetchException("Failed to fetch Label names from provider", e);
+        }
         return response.getLabels().stream().map(Label::getName).toList();
 
     }
 
     public List<EmailApplicationClassification> getRecentEmails(int daysBack) throws Exception {
 
-        var service = gmailService();
 
         LocalDate endDate = LocalDate.now();  // 2026/02/14
         LocalDate startDate = endDate.minusDays(daysBack);  // 2026/02/09
-        List<String> messageIds = fetchMessageIds(service, startDate, endDate);
-        // TODO: this is tempeorary. Refactor the logic.
-        Set<String> processedEmails = emailService.getEmails().stream().map(EmailDTO::getEmailId).collect(Collectors.toSet());
+        List<String> messageIds = fetchMessageIds(startDate, endDate);
+        // Use checkpoint service to filter already processed emails
+        Set<String> processedEmails = checkpointService.getProcessedEmailIds();
         messageIds = messageIds.stream().filter(id -> !processedEmails.contains(id)).toList();
-        log.info("Filtered {}", messageIds.size());
+        log.info("Filtered {} using checkpoint service", messageIds.size());
 
         int batchSize = 10;
         List<EmailApplicationClassification> allClassifications = new ArrayList<>();
         for (int i = 0; i < messageIds.size(); i += batchSize) {
             List<String> batchIds = messageIds.subList(i, Math.min(i + batchSize, messageIds.size()));
-            List<EmailDTO> emails = fetchEmails(service, batchIds);
+            List<EmailDTO> emails = fetchEmails(batchIds);
             List<EmailDTO> jobApplications = filterJobApplications(emails);
             // Batch DB write
             emailService.saveAllEmails(jobApplications);
@@ -90,10 +97,16 @@ public class GmailService {
 
     }
 
-
-    public List<EmailDTO> filterJobApplications(List<EmailDTO> emails) throws JsonProcessingException, InterruptedException {
-        // Classify email using LLM
-        List<EmailApplicationResponse> jobResponses = langChainService.filterJobApplicationSubjects(emails);
+    public List<EmailDTO> filterJobApplications(List<EmailDTO> emails) {
+        List<EmailApplicationResponse> jobResponses;
+        try {
+            jobResponses = langChainService.filterJobApplicationSubjects(emails);
+        } catch (JsonProcessingException e) {
+            throw new EmailFetchException("Failed to parse AI response", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new EmailFetchException("AI processing was interrupted", e);
+        }
 
         Set<String> jobEmailIds = jobResponses.stream()
             .filter(resp -> Boolean.TRUE.equals(resp.getIsJobApplication()))
@@ -106,10 +119,27 @@ public class GmailService {
             .toList();
     }
 
-    private List<EmailDTO> fetchEmails(Gmail service, List<String> messageIds) throws IOException {
+    @Override
+    public List<String> fetchMessageIds(int daysBack) {
+        LocalDate endDate = LocalDate.now();       // 2026/02/14
+        LocalDate startDate = endDate.minusDays(daysBack); // 2026/02/09
+        try {
+            return fetchMessageIds(startDate, endDate);
+        } catch (IOException e) {
+            throw new EmailFetchException("Failed to fetch message IDs from provider", e);
+        }
+    }
+
+    @Override
+    public List<EmailDTO> fetchEmails(List<String> messageIds) {
         List<EmailDTO> results = new ArrayList<>();
         for (String msgId : messageIds) {
-            Message message = service.users().messages().get(USER, msgId).setFormat("full").execute();
+            Message message = null;
+            try {
+                message = gmail.users().messages().get(USER, msgId).setFormat("full").execute();
+            } catch (IOException e) {
+                throw new EmailFetchException("Failed to fetch message IDs from provider", e);
+            }
             ZonedDateTime dateTime = Instant.ofEpochMilli(message.getInternalDate()).atZone(ZoneId.of("UTC"));
             String from = emailParsingService.extractHeader(message, "From");
             String subject = emailParsingService.extractHeader(message, "Subject");
@@ -119,16 +149,13 @@ public class GmailService {
         return results;
     }
 
-    private List<String> fetchMessageIds(Gmail service, LocalDate startDate, LocalDate endDate) throws IOException {
-        return getMessageIdsDateRange(service, USER, startDate.format(DateTimeFormatter.ofPattern(
+    public List<String> fetchMessageIds(LocalDate startDate, LocalDate endDate) throws IOException {
+        return getMessageIdsDateRange(gmail, startDate.format(DateTimeFormatter.ofPattern(
             "yyyy/MM/dd")), endDate.format(DateTimeFormatter.ofPattern("yyyy/MM/dd")), 50);
     }
 
 
-
-
-
-    private List<String> getMessageIdsDateRange(Gmail service, String user, String afterDate, String beforeDate,
+    private List<String> getMessageIdsDateRange(Gmail service, String afterDate, String beforeDate,
                                                 long maxResultsPerPage) throws IOException {
 
         List<String> allIds = new ArrayList<>();
@@ -138,8 +165,7 @@ public class GmailService {
         String query = String.format("in:inbox after:%s before:%s", afterDate, beforeDate);
 
         do {
-            ListMessagesResponse response =
-                    service.users().messages().list(user).setQ(query) // Past 5 days exactly
+            ListMessagesResponse response = service.users().messages().list(GmailService.USER).setQ(query) // Past 5 days exactly
                             .setMaxResults(maxResultsPerPage)     // Page size: 50
                             .setPageToken(nextPageToken)          // Pagination
                             .execute();
@@ -155,20 +181,17 @@ public class GmailService {
         return allIds;
     }
 
-    public List<String> getLabelEmails() throws Exception {
-        ListMessagesResponse response = gmailService().users().messages().list(USER).execute();
+    public List<String> getLabelEmails() throws IOException {
+        ListMessagesResponse response = gmail.users().messages().list(USER).execute();
         return response.getMessages().stream().map(Message::getId).toList();
 
     }
 
-    private Gmail gmailService() throws IOException, GeneralSecurityException {
-        return gmailServiceFactory.getService();
-    }
 
     //    @Retry(name = "gmailApi", fallbackMethod = "getFullMessageFallback")
 //    @CircuitBreaker(name = "classifyEmail")
-    public String getFullMessage(String messageId) throws Exception {
-        var message = gmailService().users().messages().get(USER, messageId).setFormat("full").execute();
+    public String getFullMessage(String messageId) throws IOException {
+        var message = gmail.users().messages().get(USER, messageId).setFormat("full").execute();
         return emailParsingService.extractPlainText(message.getPayload());
     }
 
